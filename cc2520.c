@@ -1,10 +1,12 @@
 #include <linux/module.h>  
-#include <linux/kernel.h>   /* Needed for KERN_INFO */
+#include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
 #include <linux/ktime.h>
 #include <linux/hrtimer.h>
 #include <linux/slab.h>
+
+#include "cc2520.h"
 
 #define DRIVER_AUTHOR "Andrew Robinson <androbin@umich.edu>"
 #define DRIVER_DESC   "A driver for the CC2520 radio. Be afraid."
@@ -14,6 +16,10 @@ int irqNumber = 0;
 int pinValue = 0;
 
 struct hrtimer utimer;
+
+
+
+
 
 static enum hrtimer_restart callbackFunc(struct hrtimer *timer)
 {
