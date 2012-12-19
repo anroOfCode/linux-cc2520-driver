@@ -1,3 +1,6 @@
+#ifndef CC2520_H
+#define CC2520_H
+
 //////////////////////////////
 // Configuration for driver
 /////////////////////////////
@@ -52,9 +55,18 @@ struct cc2520_gpioState {
 };
 
 struct cc2520_state {
+	// Hardware
 	struct cc2520_gpioState gpios;
+
+	// Character Device
+	unsigned int major;
+
 };
 
 int cc2520_setupGpioPins(void);
 
 void cc2520_freeGpioPins(void);
+
+extern struct cc2520_state state;
+
+#endif
