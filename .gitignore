@@ -6,3 +6,5 @@
 *.order
 Module.symvers
 .tmp_versions
+.cc2520.mod.o.cmd
+.cc2520.o.cmd
