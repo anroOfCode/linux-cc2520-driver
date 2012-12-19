@@ -43,6 +43,9 @@
 // Structs and definitions
 /////////////////////////////
 
+// XOSC Period in nanoseconds.
+#define CC2520_XOSC_PERIOD 31
+
 struct cc2520_gpioState {
 	unsigned int fifopIrq;
 	unsigned int sfdIrq;

@@ -2,9 +2,10 @@
 #CROSS_COMPILE=arm-linux-gnueabi-gcc
 
 TARGET = cc2520
-OBJS = cc2520.o
+OBJS = radio.o interface.o
 
 obj-m += $(TARGET).o
+cc2520-objs = radio.o interface.o
 
 # Set this is your linux kernel checkout.
 KDIR := /home/androbin/linux-rpi-3.2.27

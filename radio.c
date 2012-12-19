@@ -5,6 +5,7 @@
 #include <linux/ktime.h>
 #include <linux/hrtimer.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 #include "cc2520.h"
 
@@ -105,14 +106,13 @@ int cc2520_setupGpioPins()
         goto fail;
     state.gpios.fifopIrq = irq;
 
-
+    // Setup SFD Interrupt
     irq = gpio_to_irq(CC2520_SFD);
     if (irq < 0) {
         err = irq;
         goto fail;
     }
 
-    // Setup SFD Interrupt
     err = request_irq(
         irq, 
         cc2520_sfdHandler, 
