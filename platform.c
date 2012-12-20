@@ -15,13 +15,9 @@
 // SPI Stuff
 //////////////////////////
 
-#define SPI_BUS 0
-#define SPI_BUS_CS0 0
-#define SPI_BUS_SPEED 500000
+const char cc2520_name[] = "cc2520";
 
-const char this_driver_name[] = "cc2520";
-
-int cc2520_spi_addToBus(void)
+int cc2520_spi_addToBus()
 {
     struct spi_master *spi_master;
     struct spi_device *spi_device;
@@ -31,16 +27,16 @@ int cc2520_spi_addToBus(void)
 
     spi_master = spi_busnum_to_master(SPI_BUS);
     if (!spi_master) {
-        printk(KERN_ALERT "spi_busnum_to_master(%d) returned NULL\n",
+        printk(KERN_ALERT "[cc2520] - spi_busnum_to_master(%d) returned NULL\n",
             SPI_BUS);
-        printk(KERN_ALERT "Missing modprobe omap2_mcspi?\n");
+        printk(KERN_ALERT "[cc2520] - Missing modprobe spi-bcm2708?\n");
         return -1;
     }
 
     spi_device = spi_alloc_device(spi_master);
     if (!spi_device) {
         put_device(&spi_master->dev);
-        printk(KERN_ALERT "spi_alloc_device() failed\n");
+        printk(KERN_ALERT "[cc2520] - spi_alloc_device() failed\n");
         return -1;
     }
 
@@ -52,16 +48,17 @@ int cc2520_spi_addToBus(void)
             spi_device->chip_select);
 
     pdev = bus_find_device_by_name(spi_device->dev.bus, NULL, buff);
-    if (pdev) {
-        /* We are not going to use this spi_device, so free it */ 
-        //spi_dev_put(spi_device);
 
-        /* 
-         * There is already a device configured for this bus.cs  
-         */
-        printk(KERN_INFO
-            "Driver [%s] already registered for %s. Nuking from orbit.\n",
-            pdev->driver->name, buff);
+    if (pdev) {
+        if (pdev->driver != NULL) {
+            printk(KERN_INFO
+                "[cc2520] - Driver [%s] already registered for %s. Nuking from orbit.\n",
+                pdev->driver->name, buff);            
+        }
+        else {
+            printk(KERN_INFO
+                "[cc2520] - Previous driver registered with no loaded module. Nuking from orbit.\n");
+        }
 
         device_unregister(pdev);
     }
@@ -70,14 +67,15 @@ int cc2520_spi_addToBus(void)
     spi_device->mode = SPI_MODE_0;
     spi_device->bits_per_word = 8;
     spi_device->irq = -1;
+
     spi_device->controller_state = NULL;
     spi_device->controller_data = NULL;
-    strlcpy(spi_device->modalias, this_driver_name, SPI_NAME_SIZE);
+    strlcpy(spi_device->modalias, cc2520_name, SPI_NAME_SIZE);
 
     status = spi_add_device(spi_device);        
     if (status < 0) {   
         spi_dev_put(spi_device);
-        printk(KERN_ALERT "spi_add_device() failed: %d\n", 
+        printk(KERN_ALERT "[cc2520] - spi_add_device() failed: %d\n", 
             status);        
     }               
 
@@ -87,28 +85,36 @@ int cc2520_spi_addToBus(void)
 
 static int cc2520_spi_probe(struct spi_device *spi_device)
 {
-    printk(KERN_INFO "PROBINGGGGG\n");
+    printk(KERN_INFO "[cc2520] - Inserting SPI protocol driver.\n");
     return 0;
 }
 
 static int cc2520_spi_remove(struct spi_device *spi_device)
 {
-
+    printk(KERN_INFO "[cc2520] - Removing SPI protocol driver.");
     return 0;
 }
 
 static struct spi_driver cc2520_spiDriver = {
         .driver = {
-            .name = this_driver_name,
+            .name = cc2520_name,
             .owner = THIS_MODULE,
         },
         .probe = cc2520_spi_probe,
         .remove = cc2520_spi_remove,
 };
 
-void cc2520_plat_setupSpi()
+int cc2520_plat_setupSpi()
 {
-    spi_register_driver(&cc2520_spiDriver);
+    int result;
+
+    result = cc2520_spi_addToBus();
+    if (result < 0)
+        return result;
+
+    result = spi_register_driver(&cc2520_spiDriver);
+    
+    return result;
 }
 
 void cc2520_plat_freeSpi()

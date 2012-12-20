@@ -42,6 +42,12 @@
 // Start frame delimiter
 #define CC2520_SFD CC2520_GPIO_4
 
+// For Raspberry pi we're using the following
+// SPI bus and CS pin.
+#define SPI_BUS 0
+#define SPI_BUS_CS0 0
+#define SPI_BUS_SPEED 500000
+
 //////////////////////////////
 // Structs and definitions
 /////////////////////////////
@@ -70,10 +76,8 @@ void cc2520_radio_init(void);
 int cc2520_plat_setupGpioPins(void);
 void cc2520_plat_freeGpioPins(void);
 
-void cc2520_plat_setupSpi(void);
+int cc2520_plat_setupSpi(void);
 void cc2520_plat_freeSpi(void);
-
-int cc2520_spi_addToBus(void);
 
 extern struct cc2520_state state;
 

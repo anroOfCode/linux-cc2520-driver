@@ -48,7 +48,7 @@ int init_module()
 
     cc2520_plat_setupSpi();
 
-    cc2520_spi_addToBus();
+    
     //////////////////////////
     // GPIO Interrupt Init
     //err = gpio_request_one(22, GPIOF_DIR_IN, NULL);
