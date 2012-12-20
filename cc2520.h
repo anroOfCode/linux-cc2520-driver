@@ -85,6 +85,8 @@ void cc2520_plat_free_gpio_pins(void);
 int cc2520_plat_setup_spi(void);
 void cc2520_plat_free_spi(void);
 
+
+void cc2520_radio_writeRegister(u8 reg, u8 value);
 extern struct cc2520_state state;
 
 

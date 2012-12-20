@@ -87,6 +87,8 @@ static int cc2520_spi_probe(struct spi_device *spi_device)
 {
     printk(KERN_INFO "[cc2520] - Inserting SPI protocol driver.\n");
     state.spi_device = spi_device;
+
+    //cc2520_radio_writeRegister(0,0);
     return 0;
 }
 
@@ -110,14 +112,6 @@ int cc2520_plat_setup_spi()
 {
     int result;
 
-    result = cc2520_spi_add_to_bus();
-    if (result < 0)
-        goto error;
-
-    result = spi_register_driver(&cc2520_spi_driver);
-    if (result < 0)
-        goto error;
-    
     state.tx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);
     if (!state.tx_buf) {
         result = -EFAULT;
@@ -129,6 +123,16 @@ int cc2520_plat_setup_spi()
         result = -EFAULT;
         goto error;
     }
+
+    result = cc2520_spi_add_to_bus();
+    if (result < 0)
+        goto error;
+
+    result = spi_register_driver(&cc2520_spi_driver);
+    if (result < 0)
+        goto error;
+    
+    return 0;
 
     error:
         spi_unregister_driver(&cc2520_spi_driver);
@@ -148,8 +152,20 @@ int cc2520_plat_setup_spi()
 
 void cc2520_plat_free_spi()
 {
+    if (state.spi_device)
+        spi_unregister_device(state.spi_device);
+
     spi_unregister_driver(&cc2520_spi_driver);
 
+    if (state.rx_buf) {
+        kfree(state.rx_buf);
+        state.rx_buf = 0;
+    }
+
+    if (state.tx_buf) {
+        kfree(state.tx_buf);
+        state.tx_buf = 0;
+    }
 }
 
 //////////////////////////
