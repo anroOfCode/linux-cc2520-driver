@@ -40,15 +40,15 @@ int init_module()
 
     printk(KERN_INFO "Loading CC2520 Kernel Module v0.01...\n");
 
-    err = cc2520_plat_setupGpioPins();
+    err = cc2520_plat_setup_gpio_pins();
     if (err) {
         printk(KERN_INFO "[CC2520] - Error setting up GPIO pins. Aborting.");
         return 1;
     }
 
-    cc2520_plat_setupSpi();
+    cc2520_plat_setup_spi();
 
-    
+
     //////////////////////////
     // GPIO Interrupt Init
     //err = gpio_request_one(22, GPIOF_DIR_IN, NULL);
@@ -89,8 +89,8 @@ int init_module()
 
 void cleanup_module()
 {
-    cc2520_plat_freeGpioPins();
-    cc2520_plat_freeSpi();
+    cc2520_plat_free_gpio_pins();
+    cc2520_plat_free_spi();
     hrtimer_cancel(&utimer); //
     printk(KERN_INFO "Unloading CC2520 Kernel Module...\n");
 }
