@@ -8,3 +8,9 @@
 #include <linux/delay.h>
 
 #include "cc2520.h"
+
+void cc2520_radio_init()
+{
+
+
+}

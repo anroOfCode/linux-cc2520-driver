@@ -63,9 +63,17 @@ struct cc2520_state {
 
 };
 
-int cc2520_setupGpioPins(void);
+// Radio
+void cc2520_radio_init(void);
 
-void cc2520_freeGpioPins(void);
+// Platform
+int cc2520_plat_setupGpioPins(void);
+void cc2520_plat_freeGpioPins(void);
+
+void cc2520_plat_setupSpi(void);
+void cc2520_plat_freeSpi(void);
+
+int cc2520_spi_addToBus(void);
 
 extern struct cc2520_state state;
 
