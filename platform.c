@@ -54,7 +54,7 @@ int cc2520_spi_addToBus(void)
     pdev = bus_find_device_by_name(spi_device->dev.bus, NULL, buff);
     if (pdev) {
         /* We are not going to use this spi_device, so free it */ 
-        spi_dev_put(spi_device);
+        //spi_dev_put(spi_device);
 
         /* 
          * There is already a device configured for this bus.cs  
@@ -63,7 +63,7 @@ int cc2520_spi_addToBus(void)
             "Driver [%s] already registered for %s. Nuking from orbit.\n",
             pdev->driver->name, buff);
 
-        device_del(pdev);
+        device_unregister(pdev);
     }
 
     spi_device->max_speed_hz = SPI_BUS_SPEED;
