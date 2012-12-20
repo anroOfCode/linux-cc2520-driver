@@ -49,6 +49,7 @@
 #define SPI_BUS 0
 #define SPI_BUS_CS0 0
 #define SPI_BUS_SPEED 500000
+#define SPI_BUFF_SIZE 256
 
 //////////////////////////////
 // Structs and definitions
