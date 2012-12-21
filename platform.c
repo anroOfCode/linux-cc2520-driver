@@ -88,7 +88,7 @@ static int cc2520_spi_probe(struct spi_device *spi_device)
     printk(KERN_INFO "[cc2520] - Inserting SPI protocol driver.\n");
     state.spi_device = spi_device;
 
-    //cc2520_radio_writeRegister(0,0);
+    cc2520_radio_writeRegister(0,0);
     return 0;
 }
 
@@ -175,6 +175,7 @@ void cc2520_plat_free_spi()
 static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id) 
 {
     printk(KERN_INFO "[CC2520] - sfd interrupt occurred");
+    
     return IRQ_HANDLED;
 }
 
