@@ -98,6 +98,8 @@ extern const char cc2520_name[];
 // Radio Opcodes and Register Defs
 /////////////////////////////
 
+// Note: Adopted from TinyOS CC2520 driver.
+
 typedef struct cc2520_metadata_t
 {
 	u8 lqi;
@@ -143,8 +145,6 @@ typedef union cc2520_frmctrl0 {
     } f;
 } cc2520_frmctrl0_t;
 
-static cc2520_frmctrl0_t cc2520_frmctrl0_default = {.f.autocrc = 1};
-
 typedef union cc2520_txpower {
     u8 value;
     struct {
@@ -152,22 +152,12 @@ typedef union cc2520_txpower {
     } f;
 } cc2520_txpower_t;
 
-// Set 0dBm output power
-static cc2520_txpower_t cc2520_txpower_default = { .f.pa_power = 0x32 };
-
 typedef union cc2520_ccactrl0 {
     u8 value;
     struct {
         unsigned cca_thr: 8;
     } f;
 } cc2520_ccactrl0_t;
-
-// Raises CCA threshold from -108dBm to -8 - 76 = -84dBm
-//static cc2520_ccactrl0_t cc2520_ccactrl0_default = { .f.cca_thr = 0xF8 };
-// FIXME: This might be a problem in the EK devkit. But the threshold has to
-// be really high!
-// Raises CCA threshold from -108dBm to 10 - 76dBm
-static cc2520_ccactrl0_t cc2520_ccactrl0_default = { .f.cca_thr = 0x1A };
 
 typedef union cc2520_mdmctrl0 {
     u8 value;
@@ -179,10 +169,6 @@ typedef union cc2520_mdmctrl0 {
     } f;
 } cc2520_mdmctrl0_t;
 
-// Makes sync word detection less likely by requiring two zero symbols before
-// the sync word
-static cc2520_mdmctrl0_t cc2520_mdmctrl0_default = {.f.tx_filter = 1, .f.preamble_length = 2, .f.demod_avg_mode = 0, .f.dem_num_zeros = 2};
-
 typedef union cc2520_mdmctrl1 {
     u8 value;
     struct {
@@ -192,10 +178,6 @@ typedef union cc2520_mdmctrl1 {
     } f;
 } cc2520_mdmctrl1_t;
 
-// Only one SFD symbol must be above threshold, and raise correlation
-// threshold
-static cc2520_mdmctrl1_t cc2520_mdmctrl1_default = {.f.corr_thr = 0x14, .f.corr_thr_sfd = 0};
-
 typedef union cc2520_freqctrl {
     u8 value;
     struct {
@@ -204,8 +186,6 @@ typedef union cc2520_freqctrl {
     } f;
 } cc2520_freqctrl_t;
 
-static cc2520_freqctrl_t cc2520_freqctrl_default = {.f.freq = 0x0B };
-
 typedef union cc2520_fifopctrl {
     u8 value;
     struct {
@@ -213,6 +193,8 @@ typedef union cc2520_fifopctrl {
         unsigned reserved0 : 1;
     } f;
 } cc2520_fifopctrl_t;
+
+
 
 typedef union cc2520_frmfilt0 {
     u8 value;
@@ -225,7 +207,6 @@ typedef union cc2520_frmfilt0 {
     } f;
 } cc2520_frmfilt0_t;
 
-static cc2520_frmfilt0_t cc2520_frmfilt0_default = {.f.max_frame_version = 2, .f.frame_filter_en = 1};
 
 typedef union cc2520_frmfilt1 {
     u8 value;
@@ -240,8 +221,6 @@ typedef union cc2520_frmfilt1 {
     } f;
 } cc2520_frmfilt1_t;
 
-static cc2520_frmfilt1_t cc2520_frmfilt1_default = {.f.accept_ft_0_beacon = 1, .f.accept_ft_1_data = 1, .f.accept_ft_2_ack = 1, .f.accept_ft_3_mac_cmd = 1};
-
 typedef union cc2520_srcmatch {
     u8 value;
     struct {
@@ -252,57 +231,35 @@ typedef union cc2520_srcmatch {
     } f;
 } cc2520_srcmatch_t;
 
-static cc2520_srcmatch_t cc2520_srcmatch_default = {.f.src_match_en = 1, .f.autopend = 1, .f.pend_datareq_only = 1};
-
 typedef union cc2520_rxctrl {
     u8 value;
 } cc2520_rxctrl_t;
 
-static cc2520_rxctrl_t cc2520_rxctrl_default = {.value = 0x3F};
+
 
 typedef union cc2520_fsctrl {
     u8 value;
 } cc2520_fsctrl_t;
 
-static cc2520_fsctrl_t cc2520_fsctrl_default = {.value = 0x5A};
-
 typedef union cc2520_fscal1 {
     u8 value;
 } cc2520_fscal1_t;
-
-static cc2520_fscal1_t cc2520_fscal1_default = {.value = 0x2B};
 
 typedef union cc2520_agcctrl1 {
     u8 value;
 } cc2520_agcctrl1_t;
 
-static cc2520_agcctrl1_t cc2520_agcctrl1_default = {.value = 0x11};
-
 typedef union cc2520_adctest0 {
     u8 value;
 } cc2520_adctest0_t;
-
-static cc2520_adctest0_t cc2520_adctest0_default = {.value = 0x10};
 
 typedef union cc2520_adctest1 {
     u8 value;
 } cc2520_adctest1_t;
 
-static cc2520_adctest1_t cc2520_adctest1_default = {.value = 0x0E};
-
 typedef union cc2520_adctest2 {
     u8 value;
 } cc2520_adctest2_t;
-
-static cc2520_adctest2_t cc2520_adctest2_default = {.value = 0x03};
-
-#ifndef CC2520_DEF_CHANNEL
-#define CC2520_DEF_CHANNEL 25
-#endif
-
-#ifndef CC2520_DEF_RFPOWER
-#define CC2520_DEF_RFPOWER 0x32 // 0 dBm
-#endif
 
 enum {
     CC2520_TX_PWR_MASK  = 0xFF,

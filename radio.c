@@ -11,9 +11,11 @@
 #include <linux/delay.h>
 
 #include "cc2520.h"
+#include "radio_config.h"
 
-    struct spi_message msg;
-    struct spi_transfer tsfer;
+
+struct spi_message msg;
+struct spi_transfer tsfer;
 
 void cc2520_radio_init()
 {
@@ -21,10 +23,10 @@ void cc2520_radio_init()
     gpio_set_value(CC2520_RESET, 0);
     udelay(200);
     gpio_set_value(CC2520_RESET, 1);
+    udelay(200);
 
     cc2520_radio_writeRegister(CC2520_TXPOWER, cc2520_txpower_default.value);
     cc2520_radio_writeRegister(CC2520_CCACTRL0, cc2520_ccactrl0_default.value);
-    /*
     cc2520_radio_writeRegister(CC2520_MDMCTRL0, cc2520_mdmctrl0_default.value);
     cc2520_radio_writeRegister(CC2520_MDMCTRL1, cc2520_mdmctrl1_default.value);
     cc2520_radio_writeRegister(CC2520_RXCTRL, cc2520_rxctrl_default.value);
@@ -34,29 +36,10 @@ void cc2520_radio_init()
     cc2520_radio_writeRegister(CC2520_ADCTEST0, cc2520_adctest0_default.value);
     cc2520_radio_writeRegister(CC2520_ADCTEST1, cc2520_adctest1_default.value);
     cc2520_radio_writeRegister(CC2520_ADCTEST2, cc2520_adctest2_default.value);
-    */
-    // setup fifop threshold
-    //fifopctrl.f.fifop_thr = 127;
-    //cc2520_radio_writeRegister(CC2520_FIFOPCTRL, fifopctrl.value);
-
-    // FIXME: disable frame filtering for now
-    //frmfilt0 = cc2520_frmfilt0_default;
-    //frmfilt0.f.frame_filter_en = 0;
-    //cc2520_radio_writeRegister(CC2520_FRMFILT0, frmfilt0.value);
-
-    //frmctrl0 = cc2520_frmctrl0_default;
-    //frmctrl0.f.autoack = 1;
-    //writeRegister(CC2520_FRMCTRL0, frmctrl0.value);
-
-    // accept reserved frames
-    //frmfilt1 = cc2520_frmfilt1_default;
-    //frmfilt1.f.accept_ft_4to7_reserved = 1;
-    //cc2520_radio_writeRegister(CC2520_FRMFILT1, frmfilt1.value);
-
-    // disable src address decoding
-    //srcmatch = cc2520_srcmatch_default;
-    //srcmatch.f.src_match_en = 0;
-    //cc2520_radio_writeRegister(CC2520_SRCMATCH, srcmatch.value);   
+    cc2520_radio_writeRegister(CC2520_FIFOPCTRL, cc2520_fifopctrl_default.value);
+    cc2520_radio_writeRegister(CC2520_FRMCTRL0, cc2520_frmctrl0_default.value);
+    cc2520_radio_writeRegister(CC2520_FRMFILT1, cc2520_frmfilt1_default.value);
+    cc2520_radio_writeRegister(CC2520_SRCMATCH, cc2520_srcmatch_default.value);   
 }
 
 static void spike_completion_handler(void *arg)
