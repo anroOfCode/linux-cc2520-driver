@@ -27,8 +27,16 @@ long interface_ioctl(struct file *file,
 {
 	switch (ioctl_num) {
 		case CC2520_IO_RADIO_INIT:
-			printk(KERN_INFO "[cc2520] - Radio Initializing...\n");
+			printk(KERN_INFO "[cc2520] - Radio Initializing\n");
 			cc2520_radio_init();
+			break;
+		case CC2520_IO_RADIO_ON:
+			printk(KERN_INFO "[cc2520] - Radio turning on\n");
+			cc2520_radio_on();
+			break;
+		case CC2520_IO_RADIO_OFF:
+			printk(KERN_INFO "[cc2520] - Radio turning off\n");
+			cc2520_radio_off();
 			break;
 	}
 

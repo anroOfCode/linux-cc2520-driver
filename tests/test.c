@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
-#include "../ioctl.h"
+#include "ioctl.h"
 
 int main(char ** argv, int argc)
 {
@@ -10,5 +10,6 @@ int main(char ** argv, int argc)
 	int file_desc;
 	file_desc = open("/dev/radio", 0);	
 	ioctl(file_desc, CC2520_IO_RADIO_INIT, NULL);
+	ioctl(file_desc, CC2520_IO_RADIO_ON, NULL);
 	close(file_desc);
 }

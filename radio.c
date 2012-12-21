@@ -17,6 +17,8 @@
 struct spi_message msg;
 struct spi_transfer tsfer;
 
+static cc2520_status_t cc2520_radio_strobe(u8 cmd);
+
 void cc2520_radio_init()
 {
     // 200uS Reset Pulse.
@@ -42,9 +44,32 @@ void cc2520_radio_init()
     cc2520_radio_writeRegister(CC2520_SRCMATCH, cc2520_srcmatch_default.value);   
 }
 
+void cc2520_radio_on()
+{
+
+    cc2520_radio_set_channel(CC2520_DEF_CHANNEL & CC2520_CHANNEL_MASK);
+    cc2520_radio_strobe(CC2520_CMD_SRXON);
+}
+
+void cc2520_radio_off()
+{
+
+
+}
+
 static void spike_completion_handler(void *arg)
 {   
     printk(KERN_INFO "Spi Callback complete.");
+}
+
+void cc2520_radio_set_channel(int channel)
+{
+    cc2520_freqctrl_t freqctrl;
+    freqctrl = cc2520_freqctrl_default;
+
+    freqctrl.f.freq = 11 + 5 * (channel - 11);
+
+    cc2520_radio_writeRegister(CC2520_FREQCTRL, freqctrl.value);
 }
 
 void cc2520_radio_writeRegister(u8 reg, u8 value)
@@ -73,4 +98,25 @@ void cc2520_radio_writeRegister(u8 reg, u8 value)
     spi_message_add_tail(&tsfer, &msg);
 
     status = spi_sync(state.spi_device, &msg);
+}
+
+static cc2520_status_t cc2520_radio_strobe(u8 cmd)
+{
+    int status;
+    cc2520_status_t ret;
+
+    state.tx_buf[0] = cmd;
+    tsfer.len = 1;
+
+    memset(state.rx_buf, 0, SPI_BUFF_SIZE);
+
+    spi_message_init(&msg);
+    msg.complete = spike_completion_handler;
+    msg.context = NULL;
+    spi_message_add_tail(&tsfer, &msg);    
+
+    status = spi_sync(state.spi_device, &msg);
+
+    ret.value = state.rx_buf[0];
+    return ret;
 }

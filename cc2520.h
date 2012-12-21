@@ -77,6 +77,10 @@ struct cc2520_state {
 
 // Radio
 void cc2520_radio_init(void);
+void cc2520_radio_on(void);
+void cc2520_radio_off(void);
+void cc2520_radio_set_channel(int channel);
+
 void cc2520_radio_writeRegister(u8 reg, u8 value);
 
 // Platform
