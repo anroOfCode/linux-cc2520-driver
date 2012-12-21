@@ -3,6 +3,7 @@
 
 #include <linux/types.h>
 #include <linux/semaphore.h>  /* Semaphore */
+#include <linux/workqueue.h>
 
 //////////////////////////////
 // Configuration for driver
@@ -89,7 +90,14 @@ struct cc2520_state {
 	u16 pan_id;
 	u8 channel;
 
+	// Transient Packet Information
+	u64 sfd_nanos_ts;
+
 	struct semaphore radio_sem;
+
+	struct work_struct work;    /* for deferred work */
+	struct workqueue_struct *wq;
+
 };
 
 // Radio
@@ -97,10 +105,10 @@ void cc2520_radio_init(void);
 void cc2520_radio_on(void);
 void cc2520_radio_off(void);
 void cc2520_radio_set_channel(int channel);
-
-void cc2520_radio_writeRegister(u8 reg, u8 value);
-void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len);
 void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id);
+
+void cc2520_radio_sfd_occurred(u64 nano_timestamp);
+void cc2520_radio_fifop_occurred(void);
 
 // Platform
 int cc2520_plat_gpio_init(void);

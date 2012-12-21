@@ -184,12 +184,16 @@ static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id)
         printk(KERN_INFO "[cc2520] - sfd interrupt occurred at %lld\n", (long long int)nanos);        
     }
 
+    cc2520_radio_sfd_occurred(nanos);
     return IRQ_HANDLED;
 }
 
 static irqreturn_t cc2520_fifop_handler(int irq, void *dev_id) 
 {
-    printk(KERN_INFO "[cc2520] - fifop interrupt occurred\n");
+    if (gpio_get_value(CC2520_FIFOP) == 1) {
+        printk(KERN_INFO "[cc2520] - fifop interrupt occurred\n");
+        cc2520_radio_fifop_occurred();       
+    }
     return IRQ_HANDLED;
 }
 

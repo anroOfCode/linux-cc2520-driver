@@ -7,6 +7,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/semaphore.h>
+#include <linux/workqueue.h>
 
 #include "cc2520.h"
 
@@ -45,7 +46,8 @@ int init_module()
     state.extended_addr = CC2520_DEF_EXT_ADDR;
     state.pan_id = CC2520_DEF_PAN;
     state.channel = CC2520_DEF_CHANNEL;
-
+    
+    
     printk(KERN_INFO "Loading CC2520 Kernel Module v0.01...\n");
 
     sema_init(&state.radio_sem, 1);
@@ -71,6 +73,8 @@ int init_module()
         return 1;        
     }
 
+    state.wq = create_singlethread_workqueue(cc2520_name);
+
     ////////////////////////
     // HFTimer Test
     // Create a 100uS time period.
@@ -92,6 +96,7 @@ int init_module()
 
 void cleanup_module()
 {
+    destroy_workqueue(state.wq);
     cc2520_interface_free();
     cc2520_plat_gpio_free();
     cc2520_plat_spi_free();

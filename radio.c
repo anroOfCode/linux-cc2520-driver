@@ -10,6 +10,8 @@
 #include <linux/spi/spi.h>
 #include <linux/delay.h>
 #include <linux/semaphore.h>
+#include <linux/sched.h>
+#include <linux/workqueue.h>
 
 #include "cc2520.h"
 #include "radio_config.h"
@@ -19,9 +21,23 @@ struct spi_message msg;
 struct spi_transfer tsfer;
 
 static cc2520_status_t cc2520_radio_strobe(u8 cmd);
+static void cc2520_radio_writeRegister(u8 reg, u8 value);
+static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len);
+static void cc2520_radio_readData(u8 *data, u8 len);
+static void cc2520_radio_readLength(u8 *len);
+static void cc2520_radio_download_packet(struct work_struct *work);
+
+
+//////////////////////////////
+// Initialization & On/Off
+/////////////////////////////
 
 void cc2520_radio_init()
 {
+    
+    INIT_WORK(&state.work, cc2520_radio_download_packet);
+    tsfer.cs_change = 1;
+
     // 200uS Reset Pulse.
     gpio_set_value(CC2520_RESET, 0);
     udelay(200);
@@ -62,6 +78,10 @@ static void spike_completion_handler(void *arg)
     printk(KERN_INFO "Spi Callback complete.");
 }
 
+//////////////////////////////
+// Configuration Commands
+/////////////////////////////
+
 void cc2520_radio_set_channel(int channel)
 {
     cc2520_freqctrl_t freqctrl;
@@ -95,8 +115,120 @@ void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id)
     cc2520_radio_writeMemory(CC2520_MEM_ADDR_BASE, addr_mem, 12);
 }
 
+//////////////////////////////
+// Callback Hooks
+/////////////////////////////
+
+void cc2520_radio_sfd_occurred(u64 nano_timestamp)
+{
+    // Store the SFD time for use later in timestamping
+    // incoming/outgoing packets.
+    state.sfd_nanos_ts = nano_timestamp;
+}
+
+void cc2520_radio_fifop_occurred()
+{
+    queue_work(state.wq, &state.work);
+}
+
+//////////////////////////////
+// Receiver Engine
+/////////////////////////////
+
+void cc2520_radio_reset()
+{
+
+}
+
+static void cc2520_radio_download_packet(struct work_struct *work)
+{
+    u8 len;
+    u8 *data;
+    int i;
+    char *buff;
+    char *buff_ptr;
+
+    cc2520_radio_readLength(&len);
+    data = kmalloc(len, GFP_ATOMIC);
+    if (data) {
+        cc2520_radio_readData(data, len);
+    }
+    printk(KERN_INFO "[cc2520] - Read %d bytes from radio.", len);
+
+    buff = kmalloc(len*5 + 1, GFP_ATOMIC);
+    if (buff) {
+        buff_ptr = buff;
+        for (i = 0; i < len; i++)
+        {
+            buff_ptr += sprintf(buff_ptr, " 0x%02X", data[i]);
+        }
+        sprintf(buff_ptr,"\n");
+        *(buff_ptr + 1) = '\0';
+        printk(KERN_INFO "[cc2520] - %s\n", buff);
+        kfree(buff);
+    }
+
+    if (data)
+        kfree(data);
+
+    // Get length
+
+    // Read length + 2 bytes
+
+    // Print to debug.
+}
+
+
+//////////////////////////////
+// Helper Routines
+/////////////////////////////
+
+// Requires CS line to still be low.
+static void cc2520_radio_readData(u8 *data, u8 len)
+{
+    int status;
+    int i;
+
+    tsfer.len = 0;
+    for (i = 0; i < len; i++) 
+        state.tx_buf[tsfer.len++] = 0;
+
+    tsfer.cs_change = 1;
+
+    spi_message_init(&msg);
+    msg.complete = spike_completion_handler;
+    msg.context = NULL;
+    spi_message_add_tail(&tsfer, &msg);
+
+    status = spi_sync(state.spi_device, &msg);  
+
+    memcpy(data, state.rx_buf, len);
+}
+
+static void cc2520_radio_readLength(u8 *len)
+{
+    int status;
+
+    tsfer.len = 0;
+    state.tx_buf[tsfer.len++] = CC2520_CMD_RXBUF;
+    state.tx_buf[tsfer.len++] = 0;
+
+    tsfer.cs_change = 0;
+
+    memset(state.rx_buf, 0, SPI_BUFF_SIZE);
+
+    spi_message_init(&msg);
+    msg.complete = spike_completion_handler;
+    msg.context = NULL;
+    spi_message_add_tail(&tsfer, &msg);
+
+    status = spi_sync(state.spi_device, &msg);  
+
+    *len = state.rx_buf[1];
+}
+
 // Memory address MUST be >= 200.
-void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len)
+static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len)
 {
     int status;
     int i;
@@ -119,7 +251,7 @@ void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len)
     status = spi_sync(state.spi_device, &msg);   
 }
 
-void cc2520_radio_writeRegister(u8 reg, u8 value)
+static void cc2520_radio_writeRegister(u8 reg, u8 value)
 {
     int status;
 
