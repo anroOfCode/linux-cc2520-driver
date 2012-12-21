@@ -3,6 +3,7 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 
+#include "ioctl.h"
 #include "cc2520.h"
 
 static ssize_t interface_write(
@@ -20,9 +21,24 @@ static ssize_t interface_read(struct file *filp, char __user *buff, size_t count
 	return 0;
 }
 
+long interface_ioctl(struct file *file,
+		 unsigned int ioctl_num,
+		 unsigned long ioctl_param)
+{
+	printk(KERN_INFO "Io ctl received.\n");
+	switch (ioctl_num) {
+		case CC2520_IO_RADIO_INIT:
+			printk(KERN_INFO "Radio Initialized.\n");
+			break;
+	}
+
+	return 0;
+}
+
 struct file_operations fops = {
 	.read = interface_read,
 	.write = interface_write,
+	.unlocked_ioctl = interface_ioctl,
 	.open = NULL,
 	.release = NULL
 };

@@ -15,3 +15,7 @@ following command:
 make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi-
 
 Please note that we're cross-compiling from an x86 machine.
+
+Some notes
+----------
+  * You'll need to load the spi-bcm2708 driver for this module to work. You can do this with modprobe spi-bcm2708.
