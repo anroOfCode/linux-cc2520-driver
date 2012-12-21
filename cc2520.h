@@ -52,6 +52,14 @@
 #define SPI_BUS_SPEED 500000
 #define SPI_BUFF_SIZE 256
 
+// Defaults for Radio Operation
+#define CC2520_DEF_CHANNEL 26
+#define CC2520_DEF_RFPOWER 0x32 // 0 dBm
+#define CC2520_DEF_PAN 0x22
+#define CC2520_DEF_SHORT_ADDR 0x01
+#define CC2520_DEF_EXT_ADDR 0x01
+
+
 //////////////////////////////
 // Structs and definitions
 /////////////////////////////
@@ -74,6 +82,12 @@ struct cc2520_state {
 	struct spi_device *spi_device;
 	u8 *tx_buf;
 	u8 *rx_buf;
+
+	// Radio parameters
+	u16 short_addr;
+	u64 extended_addr;
+	u16 pan_id;
+	u8 channel;
 
 	struct semaphore radio_sem;
 };

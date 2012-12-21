@@ -47,16 +47,14 @@ void cc2520_radio_init()
 
 void cc2520_radio_on()
 {
-
-    cc2520_radio_set_channel(CC2520_DEF_CHANNEL & CC2520_CHANNEL_MASK);
-    cc2520_radio_set_address(0x0001, 1, 0x22);
+    cc2520_radio_set_channel(state.channel & CC2520_CHANNEL_MASK);
+    cc2520_radio_set_address(state.short_addr, state.extended_addr, state.pan_id);
     cc2520_radio_strobe(CC2520_CMD_SRXON);
 }
 
 void cc2520_radio_off()
 {
-
-
+    cc2520_radio_strobe(CC2520_CMD_SRFOFF);
 }
 
 static void spike_completion_handler(void *arg)
@@ -93,6 +91,7 @@ void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id)
 
     addr_mem[11] = (short_addr >> 8) & 0xFF;
     addr_mem[10] = (short_addr) & 0xFF;
+
     cc2520_radio_writeMemory(CC2520_MEM_ADDR_BASE, addr_mem, 12);
 }
 

@@ -2,7 +2,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/fs.h>
-
+#include <asm/uaccess.h>
+#include <linux/types.h>
 #include "ioctl.h"
 #include "cc2520.h"
 
@@ -21,6 +22,38 @@ static ssize_t interface_read(struct file *filp, char __user *buff, size_t count
 	return 0;
 }
 
+static void interface_ioctl_set_channel(struct cc2520_set_channel_data * data)
+{
+	int result;
+	struct cc2520_set_channel_data ldata;
+	
+	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_channel_data));
+
+	if (result) {
+		printk(KERN_INFO "[cc2520] - an error occurred setting the channel");
+		return;
+	}
+
+	printk(KERN_INFO "[cc2520] - Setting channel to %d\n", ldata.channel);
+	cc2520_radio_set_channel(ldata.channel);
+}
+
+static void interface_ioctl_set_address(struct cc2520_set_address_data * data)
+{
+	int result;
+	struct cc2520_set_address_data ldata;
+	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_address_data));
+
+	if (result) {
+		printk(KERN_INFO "[cc2520] - an error occurred setting the address");
+		return;
+	}
+
+	printk(KERN_INFO "[cc2520] - Setting addr: %d ext_addr: %lld pan_id: %d",
+		ldata.short_addr, ldata.extended_addr, ldata.pan_id);
+	cc2520_radio_set_address(ldata.short_addr, ldata.extended_addr, ldata.pan_id);
+}
+
 long interface_ioctl(struct file *file,
 		 unsigned int ioctl_num,
 		 unsigned long ioctl_param)
@@ -37,6 +70,12 @@ long interface_ioctl(struct file *file,
 		case CC2520_IO_RADIO_OFF:
 			printk(KERN_INFO "[cc2520] - Radio turning off\n");
 			cc2520_radio_off();
+			break;
+		case CC2520_IO_RADIO_SET_CHANNEL:
+			interface_ioctl_set_channel((struct cc2520_set_channel_data *) ioctl_param);
+			break;
+		case CC2520_IO_RADIO_SET_ADDRESS:
+			interface_ioctl_set_address((struct cc2520_set_address_data *) ioctl_param);
 			break;
 	}
 
