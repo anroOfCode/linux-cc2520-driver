@@ -79,16 +79,21 @@ struct cc2520_state {
 void cc2520_radio_init(void);
 
 // Platform
-int cc2520_plat_setup_gpio_pins(void);
-void cc2520_plat_free_gpio_pins(void);
+int cc2520_plat_gpio_init(void);
+void cc2520_plat_gpio_free(void);
 
-int cc2520_plat_setup_spi(void);
-void cc2520_plat_free_spi(void);
+int cc2520_plat_spi_init(void);
+void cc2520_plat_spi_free(void);
 
+// Interface
+
+int cc2520_interface_init(void);
+void cc2520_interface_free(void);
 
 void cc2520_radio_writeRegister(u8 reg, u8 value);
 extern struct cc2520_state state;
 
+extern const char cc2520_name[];
 
 //////////////////////////////
 // Radio Opcodes and Register Defs

@@ -13,6 +13,7 @@
 #define DRIVER_DESC   "A driver for the CC2520 radio. Be afraid."
 
 struct cc2520_state state;
+const char cc2520_name[] = "cc2520";
 
 struct hrtimer utimer;
 int irqNumber = 0;
@@ -40,13 +41,13 @@ int init_module()
 
     printk(KERN_INFO "Loading CC2520 Kernel Module v0.01...\n");
 
-    err = cc2520_plat_setup_gpio_pins();
+    err = cc2520_plat_gpio_init();
     if (err) {
         printk(KERN_INFO "[CC2520] - Error setting up GPIO pins. Aborting.");
         return 1;
     }
 
-    cc2520_plat_setup_spi();
+    cc2520_plat_spi_init();
 
 
     //////////////////////////
@@ -84,13 +85,15 @@ int init_module()
 
     //printk(KERN_ALERT "HRTTIMER STARTED\n");
 
+    cc2520_interface_init();
     return 0;
 }
 
 void cleanup_module()
 {
-    cc2520_plat_free_gpio_pins();
-    cc2520_plat_free_spi();
+    cc2520_interface_free();
+    cc2520_plat_gpio_free();
+    cc2520_plat_spi_free();
     hrtimer_cancel(&utimer); //
     printk(KERN_INFO "Unloading CC2520 Kernel Module...\n");
 }

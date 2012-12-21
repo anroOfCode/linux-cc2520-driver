@@ -15,8 +15,6 @@
 // SPI Stuff
 //////////////////////////
 
-const char cc2520_name[] = "cc2520";
-
 static int cc2520_spi_add_to_bus(void)
 {
     struct spi_master *spi_master;
@@ -108,7 +106,7 @@ static struct spi_driver cc2520_spi_driver = {
         .remove = cc2520_spi_remove,
 };
 
-int cc2520_plat_setup_spi()
+int cc2520_plat_spi_init()
 {
     int result;
 
@@ -150,7 +148,7 @@ int cc2520_plat_setup_spi()
         return result;
 }
 
-void cc2520_plat_free_spi()
+void cc2520_plat_spi_free()
 {
     if (state.spi_device)
         spi_unregister_device(state.spi_device);
@@ -175,7 +173,6 @@ void cc2520_plat_free_spi()
 static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id) 
 {
     printk(KERN_INFO "[CC2520] - sfd interrupt occurred");
-    
     return IRQ_HANDLED;
 }
 
@@ -193,7 +190,7 @@ static irqreturn_t cc2520_fifop_handler(int irq, void *dev_id)
 
 // Sets up the GPIO pins needed for the CC2520
 // and initializes any interrupt handlers needed.
-int cc2520_plat_setup_gpio_pins()
+int cc2520_plat_gpio_init()
 {
     int err = 0;
     int irq = 0;
@@ -270,11 +267,11 @@ int cc2520_plat_setup_gpio_pins()
 
     fail:
         printk(KERN_INFO "Failed to init GPIOs\n");
-        cc2520_plat_free_gpio_pins();
+        cc2520_plat_gpio_free();
         return err;
 }
 
-void cc2520_plat_free_gpio_pins()
+void cc2520_plat_gpio_free()
 {
     gpio_free(CC2520_CLOCK);
     gpio_free(CC2520_FIFO);
