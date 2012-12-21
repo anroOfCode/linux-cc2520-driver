@@ -8,8 +8,9 @@
 static ssize_t interface_write(
 	struct file *filp, const char *in_buf, size_t len, loff_t * off)
 {
-
-	return 0;
+	cc2520_radio_writeRegister(0,0);
+	printk(KERN_INFO "Data received\n");
+	return len;
 }
 
 static ssize_t interface_read(struct file *filp, char __user *buff, size_t count,

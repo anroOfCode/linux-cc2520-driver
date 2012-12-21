@@ -47,5 +47,5 @@ void cc2520_radio_writeRegister(u8 reg, u8 value)
 
     spi_message_add_tail(&tsfer, &msg);
 
-    status = spi_async(state.spi_device, &msg);
+    status = spi_sync(state.spi_device, &msg);
 }
