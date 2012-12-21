@@ -9,7 +9,7 @@
 static ssize_t interface_write(
 	struct file *filp, const char *in_buf, size_t len, loff_t * off)
 {
-	cc2520_radio_writeRegister(0,0);
+	
 	printk(KERN_INFO "Data received\n");
 	return len;
 }
@@ -25,10 +25,10 @@ long interface_ioctl(struct file *file,
 		 unsigned int ioctl_num,
 		 unsigned long ioctl_param)
 {
-	printk(KERN_INFO "Io ctl received.\n");
 	switch (ioctl_num) {
 		case CC2520_IO_RADIO_INIT:
-			printk(KERN_INFO "Radio Initialized.\n");
+			printk(KERN_INFO "[cc2520] - Radio Initializing...\n");
+			cc2520_radio_init();
 			break;
 	}
 

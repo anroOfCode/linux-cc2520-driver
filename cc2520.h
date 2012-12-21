@@ -77,6 +77,7 @@ struct cc2520_state {
 
 // Radio
 void cc2520_radio_init(void);
+void cc2520_radio_writeRegister(u8 reg, u8 value);
 
 // Platform
 int cc2520_plat_gpio_init(void);
@@ -86,11 +87,9 @@ int cc2520_plat_spi_init(void);
 void cc2520_plat_spi_free(void);
 
 // Interface
-
 int cc2520_interface_init(void);
 void cc2520_interface_free(void);
 
-void cc2520_radio_writeRegister(u8 reg, u8 value);
 extern struct cc2520_state state;
 
 extern const char cc2520_name[];
@@ -98,6 +97,24 @@ extern const char cc2520_name[];
 //////////////////////////////
 // Radio Opcodes and Register Defs
 /////////////////////////////
+
+typedef struct cc2520_metadata_t
+{
+	u8 lqi;
+	union
+	{
+		u8 power;
+		u8 ack;
+		u8 rssi;
+	};
+} cc2520_metadata_t;
+
+enum cc2520_reg_access_enums {
+    CC2520_FREG_MASK      = 0x3F,    // highest address in FREG
+    CC2520_SREG_MASK      = 0x7F,    // highest address in SREG
+    CC2520_CMD_TXRAM_WRITE	  = 0x80, // FIXME: not sure... might need to change
+};
+
 
 typedef union cc2520_status {
 	u16 value;
@@ -113,6 +130,193 @@ typedef union cc2520_status {
 	  unsigned  xosc_stable  :1;
 	};
 } cc2520_status_t;
+
+typedef union cc2520_frmctrl0 {
+    u8 value;
+    struct {
+        unsigned tx_mode          : 2;
+        unsigned rx_mode          : 2;
+        unsigned energy_scan      : 1;
+        unsigned autoack          : 1;
+        unsigned autocrc          : 1;
+        unsigned append_data_mode : 1;
+    } f;
+} cc2520_frmctrl0_t;
+
+static cc2520_frmctrl0_t cc2520_frmctrl0_default = {.f.autocrc = 1};
+
+typedef union cc2520_txpower {
+    u8 value;
+    struct {
+        unsigned pa_power: 8;
+    } f;
+} cc2520_txpower_t;
+
+// Set 0dBm output power
+static cc2520_txpower_t cc2520_txpower_default = { .f.pa_power = 0x32 };
+
+typedef union cc2520_ccactrl0 {
+    u8 value;
+    struct {
+        unsigned cca_thr: 8;
+    } f;
+} cc2520_ccactrl0_t;
+
+// Raises CCA threshold from -108dBm to -8 - 76 = -84dBm
+//static cc2520_ccactrl0_t cc2520_ccactrl0_default = { .f.cca_thr = 0xF8 };
+// FIXME: This might be a problem in the EK devkit. But the threshold has to
+// be really high!
+// Raises CCA threshold from -108dBm to 10 - 76dBm
+static cc2520_ccactrl0_t cc2520_ccactrl0_default = { .f.cca_thr = 0x1A };
+
+typedef union cc2520_mdmctrl0 {
+    u8 value;
+    struct {
+        unsigned tx_filter       : 1;
+        unsigned preamble_length : 4;
+        unsigned demod_avg_mode  : 1;
+        unsigned dem_num_zeros   : 2;
+    } f;
+} cc2520_mdmctrl0_t;
+
+// Makes sync word detection less likely by requiring two zero symbols before
+// the sync word
+static cc2520_mdmctrl0_t cc2520_mdmctrl0_default = {.f.tx_filter = 1, .f.preamble_length = 2, .f.demod_avg_mode = 0, .f.dem_num_zeros = 2};
+
+typedef union cc2520_mdmctrl1 {
+    u8 value;
+    struct {
+        unsigned corr_thr     : 5;
+        unsigned corr_thr_sfd : 1;
+        unsigned reserved0    : 2;
+    } f;
+} cc2520_mdmctrl1_t;
+
+// Only one SFD symbol must be above threshold, and raise correlation
+// threshold
+static cc2520_mdmctrl1_t cc2520_mdmctrl1_default = {.f.corr_thr = 0x14, .f.corr_thr_sfd = 0};
+
+typedef union cc2520_freqctrl {
+    u8 value;
+    struct {
+        unsigned freq       : 7;
+        unsigned reserved0  : 1;
+    } f;
+} cc2520_freqctrl_t;
+
+static cc2520_freqctrl_t cc2520_freqctrl_default = {.f.freq = 0x0B };
+
+typedef union cc2520_fifopctrl {
+    u8 value;
+    struct {
+        unsigned fifop_thr : 7;
+        unsigned reserved0 : 1;
+    } f;
+} cc2520_fifopctrl_t;
+
+typedef union cc2520_frmfilt0 {
+    u8 value;
+    struct {
+        unsigned frame_filter_en         : 1;
+        unsigned pan_coordinator         : 1;
+        unsigned max_frame_version       : 2;
+        unsigned fcf_reserved_mask       : 3;
+        unsigned reserved                : 1;
+    } f;
+} cc2520_frmfilt0_t;
+
+static cc2520_frmfilt0_t cc2520_frmfilt0_default = {.f.max_frame_version = 2, .f.frame_filter_en = 1};
+
+typedef union cc2520_frmfilt1 {
+    u8 value;
+    struct {
+        unsigned reserved0               : 1;
+        unsigned modify_ft_filter        : 2;
+        unsigned accept_ft_0_beacon      : 1;
+        unsigned accept_ft_1_data        : 1;
+        unsigned accept_ft_2_ack         : 1;
+        unsigned accept_ft_3_mac_cmd     : 1;
+        unsigned accept_ft_4to7_reserved : 1;
+    } f;
+} cc2520_frmfilt1_t;
+
+static cc2520_frmfilt1_t cc2520_frmfilt1_default = {.f.accept_ft_0_beacon = 1, .f.accept_ft_1_data = 1, .f.accept_ft_2_ack = 1, .f.accept_ft_3_mac_cmd = 1};
+
+typedef union cc2520_srcmatch {
+    u8 value;
+    struct {
+        unsigned src_match_en      : 1;
+        unsigned autopend          : 1;
+        unsigned pend_datareq_only : 1;
+        unsigned reserved          : 5;
+    } f;
+} cc2520_srcmatch_t;
+
+static cc2520_srcmatch_t cc2520_srcmatch_default = {.f.src_match_en = 1, .f.autopend = 1, .f.pend_datareq_only = 1};
+
+typedef union cc2520_rxctrl {
+    u8 value;
+} cc2520_rxctrl_t;
+
+static cc2520_rxctrl_t cc2520_rxctrl_default = {.value = 0x3F};
+
+typedef union cc2520_fsctrl {
+    u8 value;
+} cc2520_fsctrl_t;
+
+static cc2520_fsctrl_t cc2520_fsctrl_default = {.value = 0x5A};
+
+typedef union cc2520_fscal1 {
+    u8 value;
+} cc2520_fscal1_t;
+
+static cc2520_fscal1_t cc2520_fscal1_default = {.value = 0x2B};
+
+typedef union cc2520_agcctrl1 {
+    u8 value;
+} cc2520_agcctrl1_t;
+
+static cc2520_agcctrl1_t cc2520_agcctrl1_default = {.value = 0x11};
+
+typedef union cc2520_adctest0 {
+    u8 value;
+} cc2520_adctest0_t;
+
+static cc2520_adctest0_t cc2520_adctest0_default = {.value = 0x10};
+
+typedef union cc2520_adctest1 {
+    u8 value;
+} cc2520_adctest1_t;
+
+static cc2520_adctest1_t cc2520_adctest1_default = {.value = 0x0E};
+
+typedef union cc2520_adctest2 {
+    u8 value;
+} cc2520_adctest2_t;
+
+static cc2520_adctest2_t cc2520_adctest2_default = {.value = 0x03};
+
+#ifndef CC2520_DEF_CHANNEL
+#define CC2520_DEF_CHANNEL 25
+#endif
+
+#ifndef CC2520_DEF_RFPOWER
+#define CC2520_DEF_RFPOWER 0x32 // 0 dBm
+#endif
+
+enum {
+    CC2520_TX_PWR_MASK  = 0xFF,
+    CC2520_TX_PWR_0     = 0x03, // -18 dBm
+    CC2520_TX_PWR_1     = 0x2C, //  -7 dBm
+    CC2520_TX_PWR_2     = 0x88, //  -4 dBm
+    CC2520_TX_PWR_3     = 0x81, //  -2 dBm
+    CC2520_TX_PWR_4     = 0x32, //   0 dBm
+    CC2520_TX_PWR_5     = 0x13, //   1 dBm
+    CC2520_TX_PWR_6     = 0xAB, //   2 dBm
+    CC2520_TX_PWR_7     = 0xF2, //   3 dBm
+    CC2520_TX_PWR_8     = 0xF7, //   5 dBm
+    CC2520_CHANNEL_MASK = 0x1F,
+};
 
 enum cc2520_register_enums
 {

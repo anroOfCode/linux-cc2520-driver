@@ -210,7 +210,7 @@ int cc2520_plat_gpio_init()
     if (err)
         goto fail;
 
-    err = gpio_request_one(CC2520_RESET, GPIOF_DIR_IN, NULL);
+    err = gpio_request_one(CC2520_RESET, GPIOF_DIR_OUT, NULL);
     if (err)
         goto fail;
 
