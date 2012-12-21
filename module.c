@@ -39,7 +39,10 @@ int init_module()
     ktime_t kt;
     int err = 0;
 
+    memset(&state, 0, sizeof(struct cc2520_state));
     printk(KERN_INFO "Loading CC2520 Kernel Module v0.01...\n");
+
+    sema_init(&state.radio_sem, 1);
 
     err = cc2520_plat_gpio_init();
     if (err) {
@@ -47,24 +50,20 @@ int init_module()
         return 1;
     }
 
-    cc2520_plat_spi_init();
+    err = cc2520_plat_spi_init();
+    if (err) {
+        printk(KERN_ALERT "[cc2520] - Error setting up SPI. Aborting.");
+        cc2520_plat_gpio_free();
+        return 1;
+    }
 
-
-    //////////////////////////
-    // GPIO Interrupt Init
-    //err = gpio_request_one(22, GPIOF_DIR_IN, NULL);
-    //err = gpio_request_one(23, GPIOF_DIR_OUT, NULL);
-    //printk(KERN_INFO "Requesting GPIO Pin 22: %d\n", err);
-
-    //irqNumber = gpio_to_irq(22);
-    //printk(KERN_INFO "Requesting IRQ: %d\n", irqNumber);
-
-    //if (irqNumber < 0) {
-    //    printk("Unable to get irq number.");
-    //    return 1;
-    //}
-
-    //request_irq(irqNumber, handler, IRQF_TRIGGER_FALLING, "theInterrupt", NULL);
+    err = cc2520_interface_init();
+    if (err) {
+        printk(KERN_ALERT "[cc2520] - Error setting up character driver. Aborting.");
+        cc2520_plat_spi_free();
+        cc2520_plat_gpio_free();
+        return 1;        
+    }
 
     ////////////////////////
     // HFTimer Test
@@ -76,16 +75,12 @@ int init_module()
 
     //utimer = (struct hrtimer *)kmalloc(sizeof(struct hrtimer),GFP_KERNEL);
     
-
     hrtimer_init(&utimer,CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-
     utimer.function = &callbackFunc; // callback
-
     hrtimer_start(&utimer, kt, HRTIMER_MODE_REL);
-
     //printk(KERN_ALERT "HRTTIMER STARTED\n");
 
-    cc2520_interface_init();
+    
     return 0;
 }
 

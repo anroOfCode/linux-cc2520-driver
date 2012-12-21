@@ -50,7 +50,7 @@ static cc2520_adctest1_t cc2520_adctest1_default = {.value = 0x0E};
 static cc2520_adctest2_t cc2520_adctest2_default = {.value = 0x03};
 
 #ifndef CC2520_DEF_CHANNEL
-#define CC2520_DEF_CHANNEL 25
+#define CC2520_DEF_CHANNEL 26
 #endif
 
 #ifndef CC2520_DEF_RFPOWER

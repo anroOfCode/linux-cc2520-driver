@@ -72,6 +72,12 @@ void cc2520_radio_set_channel(int channel)
     cc2520_radio_writeRegister(CC2520_FREQCTRL, freqctrl.value);
 }
 
+// Sets the short address
+void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id)
+{
+
+}
+
 void cc2520_radio_writeRegister(u8 reg, u8 value)
 {
     int status;

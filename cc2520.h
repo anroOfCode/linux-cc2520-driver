@@ -2,6 +2,7 @@
 #define CC2520_H
 
 #include <linux/types.h>
+#include <linux/semaphore.h>  /* Semaphore */
 
 //////////////////////////////
 // Configuration for driver
@@ -73,6 +74,8 @@ struct cc2520_state {
 	struct spi_device *spi_device;
 	u8 *tx_buf;
 	u8 *rx_buf;
+
+	struct semaphore radio_sem;
 };
 
 // Radio
@@ -82,6 +85,7 @@ void cc2520_radio_off(void);
 void cc2520_radio_set_channel(int channel);
 
 void cc2520_radio_writeRegister(u8 reg, u8 value);
+void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id);
 
 // Platform
 int cc2520_plat_gpio_init(void);

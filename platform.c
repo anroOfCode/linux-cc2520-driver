@@ -8,6 +8,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/spi/spi.h>
+#include <linux/time.h>
 
 #include "cc2520.h"
 
@@ -170,21 +171,31 @@ void cc2520_plat_spi_free()
 
 static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id) 
 {
-    printk(KERN_INFO "[CC2520] - sfd interrupt occurred");
+    struct timespec ts;
+    s64 nanos;
+
+    // NOTE: For now we're assuming no delay between SFD called
+    // and actual SFD received. The TinyOS implementations call
+    // for a few uS of delay, but it's likely not needed.
+    getrawmonotonic(&ts);
+    nanos = timespec_to_ns(&ts);
+
+    if (gpio_get_value(CC2520_SFD) == 1) {
+        printk(KERN_INFO "[cc2520] - sfd interrupt occurred at %lld\n", (long long int)nanos);        
+    }
+
     return IRQ_HANDLED;
 }
 
 static irqreturn_t cc2520_fifop_handler(int irq, void *dev_id) 
 {
-    printk(KERN_INFO "[CC2520] - fifop interrupt occurred");
+    printk(KERN_INFO "[cc2520] - fifop interrupt occurred\n");
     return IRQ_HANDLED;
 }
 
 //////////////////////////////
 // Interface Initialization
 //////////////////////////////
-
-
 
 // Sets up the GPIO pins needed for the CC2520
 // and initializes any interrupt handlers needed.
