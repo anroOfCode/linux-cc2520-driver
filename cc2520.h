@@ -85,6 +85,7 @@ void cc2520_radio_off(void);
 void cc2520_radio_set_channel(int channel);
 
 void cc2520_radio_writeRegister(u8 reg, u8 value);
+void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len);
 void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id);
 
 // Platform
@@ -370,6 +371,11 @@ enum cc2520_register_enums
     CC2520_DPUBIST      = 0x7A,
     CC2520_ACTBIST      = 0x7C,
     CC2520_RAMBIST      = 0x7E,
+};
+
+enum cc2520_mem_enums
+{
+	CC2520_MEM_ADDR_BASE = 0x3EA
 };
 
 enum cc2520_spi_command_enums

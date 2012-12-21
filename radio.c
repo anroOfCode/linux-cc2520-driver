@@ -9,6 +9,7 @@
 #include <linux/types.h>
 #include <linux/spi/spi.h>
 #include <linux/delay.h>
+#include <linux/semaphore.h>
 
 #include "cc2520.h"
 #include "radio_config.h"
@@ -48,6 +49,7 @@ void cc2520_radio_on()
 {
 
     cc2520_radio_set_channel(CC2520_DEF_CHANNEL & CC2520_CHANNEL_MASK);
+    cc2520_radio_set_address(0x0001, 1, 0x22);
     cc2520_radio_strobe(CC2520_CMD_SRXON);
 }
 
@@ -75,7 +77,47 @@ void cc2520_radio_set_channel(int channel)
 // Sets the short address
 void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id)
 {
+    char addr_mem[12];
 
+    addr_mem[7] = (extended_addr >> 56) & 0xFF;
+    addr_mem[6] = (extended_addr >> 48) & 0xFF;
+    addr_mem[5] = (extended_addr >> 40) & 0xFF;
+    addr_mem[4] = (extended_addr >> 32) & 0xFF;
+    addr_mem[3] = (extended_addr >> 24) & 0xFF;
+    addr_mem[2] = (extended_addr >> 16) & 0xFF;
+    addr_mem[1] = (extended_addr >> 8) & 0xFF;
+    addr_mem[0] = (extended_addr) & 0xFF;
+
+    addr_mem[9] = (pan_id >> 8) & 0xFF;
+    addr_mem[8] = (pan_id) & 0xFF;
+
+    addr_mem[11] = (short_addr >> 8) & 0xFF;
+    addr_mem[10] = (short_addr) & 0xFF;
+    cc2520_radio_writeMemory(CC2520_MEM_ADDR_BASE, addr_mem, 12);
+}
+
+// Memory address MUST be >= 200.
+void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len)
+{
+    int status;
+    int i;
+
+    tsfer.len = 0;
+    state.tx_buf[tsfer.len++] = CC2520_CMD_MEMORY_WRITE | ((mem_addr >> 8) & 0xFF);
+    state.tx_buf[tsfer.len++] = mem_addr & 0xFF;
+
+    for (i=0; i<len; i++) {
+        state.tx_buf[tsfer.len++] = value[i];
+    }
+
+    memset(state.rx_buf, 0, SPI_BUFF_SIZE);
+
+    spi_message_init(&msg);
+    msg.complete = spike_completion_handler;
+    msg.context = NULL;
+    spi_message_add_tail(&tsfer, &msg);
+
+    status = spi_sync(state.spi_device, &msg);   
 }
 
 void cc2520_radio_writeRegister(u8 reg, u8 value)

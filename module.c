@@ -6,6 +6,7 @@
 #include <linux/hrtimer.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/semaphore.h>
 
 #include "cc2520.h"
 
