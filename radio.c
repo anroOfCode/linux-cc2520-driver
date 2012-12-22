@@ -25,8 +25,12 @@ static void cc2520_radio_writeRegister(u8 reg, u8 value);
 static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len);
 static void cc2520_radio_readData(u8 *data, u8 len);
 static void cc2520_radio_readLength(u8 *len);
-static void cc2520_radio_download_packet(struct work_struct *work);
 
+//static void cc2520_radio_download_packet(struct work_struct *work);
+
+static void cc2520_radio_beginRxRead(void);
+static void cc2520_radio_continueRxRead(void *arg);
+static void cc2520_radio_finishRxRead(void *arg);
 
 //////////////////////////////
 // Initialization & On/Off
@@ -34,8 +38,7 @@ static void cc2520_radio_download_packet(struct work_struct *work);
 
 void cc2520_radio_init()
 {
-    
-    INIT_WORK(&state.work, cc2520_radio_download_packet);
+    //INIT_WORK(&state.work, cc2520_radio_download_packet);
     tsfer.cs_change = 1;
 
     // 200uS Reset Pulse.
@@ -128,7 +131,8 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp)
 
 void cc2520_radio_fifop_occurred()
 {
-    queue_work(state.wq, &state.work);
+    cc2520_radio_beginRxRead();
+    //queue_work(state.wq, &state.work);
 }
 
 //////////////////////////////
@@ -140,72 +144,7 @@ void cc2520_radio_reset()
 
 }
 
-static void cc2520_radio_download_packet(struct work_struct *work)
-{
-    u8 len;
-    u8 *data;
-    int i;
-    char *buff;
-    char *buff_ptr;
-
-    cc2520_radio_readLength(&len);
-    data = kmalloc(len, GFP_ATOMIC);
-    if (data) {
-        cc2520_radio_readData(data, len);
-    }
-    printk(KERN_INFO "[cc2520] - Read %d bytes from radio.", len);
-
-    buff = kmalloc(len*5 + 1, GFP_ATOMIC);
-    if (buff) {
-        buff_ptr = buff;
-        for (i = 0; i < len; i++)
-        {
-            buff_ptr += sprintf(buff_ptr, " 0x%02X", data[i]);
-        }
-        sprintf(buff_ptr,"\n");
-        *(buff_ptr + 1) = '\0';
-        printk(KERN_INFO "[cc2520] - %s\n", buff);
-        kfree(buff);
-    }
-
-    if (data)
-        kfree(data);
-
-    // Get length
-
-    // Read length + 2 bytes
-
-    // Print to debug.
-}
-
-
-//////////////////////////////
-// Helper Routines
-/////////////////////////////
-
-// Requires CS line to still be low.
-static void cc2520_radio_readData(u8 *data, u8 len)
-{
-    int status;
-    int i;
-
-    tsfer.len = 0;
-    for (i = 0; i < len; i++) 
-        state.tx_buf[tsfer.len++] = 0;
-
-    tsfer.cs_change = 1;
-
-    spi_message_init(&msg);
-    msg.complete = spike_completion_handler;
-    msg.context = NULL;
-    spi_message_add_tail(&tsfer, &msg);
-
-    status = spi_sync(state.spi_device, &msg);  
-
-    memcpy(data, state.rx_buf, len);
-}
-
-static void cc2520_radio_readLength(u8 *len)
+static void cc2520_radio_beginRxRead()
 {
     int status;
 
@@ -218,14 +157,69 @@ static void cc2520_radio_readLength(u8 *len)
     memset(state.rx_buf, 0, SPI_BUFF_SIZE);
 
     spi_message_init(&msg);
-    msg.complete = spike_completion_handler;
+    msg.complete = cc2520_radio_continueRxRead;
     msg.context = NULL;
     spi_message_add_tail(&tsfer, &msg);
 
-    status = spi_sync(state.spi_device, &msg);  
-
-    *len = state.rx_buf[1];
+    status = spi_async(state.spi_device, &msg);   
 }
+
+static void cc2520_radio_continueRxRead(void *arg)
+{
+    int status;
+    int i;
+    // Length of what we're reading is stored
+    // in the received spi buffer, read from the
+    // async operation called in beginRxRead.
+    int len;
+
+    len = state.rx_buf[1];
+
+    tsfer.len = 0;
+    for (i = 0; i < len; i++) 
+        state.tx_buf[tsfer.len++] = 0;
+
+    tsfer.cs_change = 1;
+
+    spi_message_init(&msg);
+    msg.complete = cc2520_radio_finishRxRead;
+    // Platform dependent? 
+    msg.context = (void*)len;
+    spi_message_add_tail(&tsfer, &msg);
+
+    status = spi_async(state.spi_device, &msg);  
+}
+
+static void cc2520_radio_finishRxRead(void *arg)
+{
+    int len;
+    int i;
+    char *buff;
+    char *buff_ptr;
+
+    len = (int)arg;
+
+    printk(KERN_INFO "[cc2520] - Read %d bytes from radio.", len);
+
+    // At this point we should schedule the system to move the
+    // RX into a different buffer. For now just print it. 
+    buff = kmalloc(len*5 + 1, GFP_ATOMIC);
+    if (buff) {
+        buff_ptr = buff;
+        for (i = 0; i < len; i++)
+        {
+            buff_ptr += sprintf(buff_ptr, " 0x%02X", state.rx_buf[i]);
+        }
+        sprintf(buff_ptr,"\n");
+        *(buff_ptr + 1) = '\0';
+        printk(KERN_INFO "[cc2520] - %s\n", buff);
+        kfree(buff);
+    }  
+}
+
+//////////////////////////////
+// Helper Routines
+/////////////////////////////
 
 // Memory address MUST be >= 200.
 static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len)
