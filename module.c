@@ -22,6 +22,10 @@
 struct cc2520_state state;
 const char cc2520_name[] = "cc2520";
 
+struct cc2520_interface interface_to_lpl;
+struct cc2520_interface lpl_to_sack;
+struct cc2520_interface sack_to_radio;
+
 struct hrtimer utimer;
 int irqNumber = 0;
 int pinValue = 0;
@@ -40,7 +44,15 @@ static enum hrtimer_restart callbackFunc(struct hrtimer *timer)
     return HRTIMER_RESTART;
 }
 
-
+void setupBindings(void)
+{
+    radio_top = sack_to_radio;
+    sack_bottom = sack_to_radio;
+    sack_top = lpl_to_sack;
+    lpl_bottom = lpl_to_sack;
+    lpl_top = interface_to_lpl;
+    interface_bottom = interface_to_lpl;
+}
 int init_module()
 {
     ktime_t kt;
@@ -52,20 +64,20 @@ int init_module()
 
     err = cc2520_plat_gpio_init();
     if (err) {
-        printk(KERN_INFO "[CC2520] - gpio driver error. aborting.");
+        printk(KERN_INFO "[CC2520] - gpio driver error. aborting.\n");
         return 1;
     }
 
     err = cc2520_plat_spi_init();
     if (err) {
-        printk(KERN_ALERT "[cc2520] - spi driver error. aborting.");
+        printk(KERN_ALERT "[cc2520] - spi driver error. aborting.\n");
         cc2520_plat_gpio_free();
         return 1;
     }
 
     err = cc2520_interface_init();
     if (err) {
-        printk(KERN_ALERT "[cc2520] - char driver error. aborting.");
+        printk(KERN_ALERT "[cc2520] - char driver error. aborting.\n");
         cc2520_plat_spi_free();
         cc2520_plat_gpio_free();
         return 1;        
@@ -73,11 +85,34 @@ int init_module()
 
     err = cc2520_radio_init();
     if (err) {
-        printk(KERN_ALERT "[cc2520] - radio init error. aborting.");
+        printk(KERN_ALERT "[cc2520] - radio init error. aborting.\n");
         cc2520_plat_spi_free();
         cc2520_plat_gpio_free();
         cc2520_interface_free();
+        return 1;
     }
+
+    err = cc2520_lpl_init();
+    if (err) {
+        printk(KERN_ALERT "[cc2520] - lpl init error. aborting.\n");
+        cc2520_radio_free();
+        cc2520_plat_spi_free();
+        cc2520_plat_gpio_free();
+        cc2520_interface_free();
+        return 1;
+    }
+
+    err = cc2520_sack_init();
+    if (err) {
+        printk(KERN_ALERT "[cc2520] - sack init error. aborting.\n");
+        cc2520_lpl_free();
+        cc2520_radio_free();
+        cc2520_plat_spi_free();
+        cc2520_plat_gpio_free();
+        cc2520_interface_free();
+        return 1;
+    }
+
 
     state.wq = create_singlethread_workqueue(cc2520_name);
 
