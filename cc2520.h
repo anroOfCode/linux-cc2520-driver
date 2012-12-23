@@ -68,6 +68,8 @@
 // XOSC Period in nanoseconds.
 #define CC2520_XOSC_PERIOD 31
 
+#define PKT_BUFF_SIZE 127
+
 struct cc2520_gpio_state {
 	unsigned int fifop_irq;
 	unsigned int sfd_irq;
@@ -80,10 +82,17 @@ struct cc2520_state {
 	// Character Device and buffers
 	unsigned int major;
     u8 *tx_buf_c;
-    u8 *rx_buf_c; 
+    u8 *rx_buf_c;
+    size_t tx_pkt_len;
+
     struct semaphore tx_sem;
     struct semaphore rx_sem;
-    
+
+    struct semaphore tx_done_sem;
+    struct semaphore rx_done_sem;
+
+    int tx_result;
+    int rx_result;
 
     // Spi device and buffers
 	struct spi_device *spi_device;
@@ -125,6 +134,10 @@ void cc2520_plat_spi_free(void);
 // Interface
 int cc2520_interface_init(void);
 void cc2520_interface_free(void);
+void cc2520_interface_write_cb(int result);
+
+// Software ACK Layer
+void cc2520_sack_tx(void);
 
 extern struct cc2520_state state;
 

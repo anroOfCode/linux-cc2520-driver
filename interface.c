@@ -15,11 +15,11 @@ static ssize_t interface_write(
 {
 	int result;
 	size_t pkt_len;
-	// If BLOCK tx_semi_down
-	// If NBLOCK try_tx_semi_down
 
-	// Copy data to driver message buffer
-	// Invoke next layer transmission 
+	printk(KERN_INFO "[cc2520] - beginning write\n");
+
+	// Step 1: Get an exclusive lock on writing to the
+	// radio.
 	if (filp->f_flags & O_NONBLOCK) {
 		result = down_trylock(&state.tx_sem);
 		if (result)
@@ -30,21 +30,41 @@ static ssize_t interface_write(
 		if (result)
 			return -ERESTARTSYS;
 	}
-
 	printk(KERN_INFO "[cc2520] - write lock obtained.\n");
 
-	pkt_len = max(len, (size_t)127);
-
+	// Step 2: Copy the packet to the incoming buffer.
+	pkt_len = min(len, (size_t)127);
 	if (copy_from_user(state.tx_buf_c, in_buf, pkt_len)) {
 		result = -EFAULT;
 		goto error;
 	}
+	state.tx_pkt_len = pkt_len;
 
-	return pkt_len;
+	// Step 3: Launch off into sending this packet,
+	// wait for an asynchronous callback to occur in
+	// the form of a semaphore. 
+	printk(KERN_INFO "[cc2520] - performing software ack test %d.\n", pkt_len);
+	cc2520_sack_tx();
+	result = down_interruptible(&state.tx_done_sem);
+	if (result)
+		return -ERESTARTSYS;
+
+	// Step 4: Finally return and allow other callers to write
+	// packets. 
+	printk(KERN_INFO "[cc2520] - returned from sack cb.\n");
+	up(&state.tx_sem);
+
+	return state.tx_result ? state.tx_result : pkt_len;
 
 	error:
 		up(&state.tx_sem);
 		return -EFAULT;
+}
+
+void cc2520_interface_write_cb(int result)
+{
+	state.tx_result = result;
+	up(&state.tx_done_sem);
 }
 
 static ssize_t interface_read(struct file *filp, char __user *buff, size_t count,
@@ -129,14 +149,17 @@ int cc2520_interface_init()
 	sema_init(&state.tx_sem, 1);
 	sema_init(&state.rx_sem, 1);
 
-    state.tx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);
-    if (!state.tx_buf) {
+	sema_init(&state.tx_done_sem, 0);
+	sema_init(&state.rx_done_sem, 0);
+
+    state.tx_buf_c = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
+    if (!state.tx_buf_c) {
         result = -EFAULT;
         goto error;
     }
         
-    state.rx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);    
-    if (!state.rx_buf) {
+    state.rx_buf_c = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);    
+    if (!state.rx_buf_c) {
         result = -EFAULT;
         goto error;
     }

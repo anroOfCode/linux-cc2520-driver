@@ -6,9 +6,10 @@
 
 int main(char ** argv, int argc)
 {
+	int result = 0;
 	printf("Testing cc2520 driver...\n");
 	int file_desc;
-	file_desc = open("/dev/radio", 0);	
+	file_desc = open("/dev/radio", O_RDWR);	
 
 	printf("Setting channel\n");
 	struct cc2520_set_channel_data chan_data;
@@ -22,7 +23,14 @@ int main(char ** argv, int argc)
 	addr_data.pan_id = 0x22;
 	ioctl(file_desc, CC2520_IO_RADIO_SET_ADDRESS, &addr_data);
 
+	printf("Turning on the radio...\n");
 	ioctl(file_desc, CC2520_IO_RADIO_INIT, NULL);
-	ioctl(file_desc, CC2520_IO_RADIO_ON, NULL);
+	//ioctl(file_desc, CC2520_IO_RADIO_ON, NULL);
+
+	printf("Sending a test message...\n");
+	char test_msg[] = {0xAA, 0xBB, 0xCC, 0xDD};;
+	result = write(file_desc, test_msg, 4);
+
+	printf("result %d\n", result);
 	close(file_desc);
 }
