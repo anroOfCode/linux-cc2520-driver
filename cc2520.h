@@ -79,7 +79,7 @@ struct cc2520_state {
 	// Hardware
 	struct cc2520_gpio_state gpios;
 
-	// Character Device and buffers
+	// Character device and buffers
 	unsigned int major;
     u8 *tx_buf_c;
     u8 *rx_buf_c;
@@ -93,6 +93,11 @@ struct cc2520_state {
 
     int tx_result;
     int rx_result;
+
+    // Radio device and buffers
+    u8 *tx_buf_r;
+    u8 *rx_buf_r;
+
 
     // Spi device and buffers
 	struct spi_device *spi_device;
@@ -108,6 +113,7 @@ struct cc2520_state {
 	// Transient Packet Information
 	u64 sfd_nanos_ts;
 
+    // CURRENTLY UNUSED:
 	struct semaphore radio_sem;
 
 	struct work_struct work;    /* for deferred work */
@@ -115,12 +121,20 @@ struct cc2520_state {
 };
 
 // Radio
-void cc2520_radio_init(void);
+
+// Radio Initializers
+int cc2520_radio_init(void);
+void cc2520_radio_free(void);
+
+// Radio Commands
+void cc2520_radio_start(void);
 void cc2520_radio_on(void);
 void cc2520_radio_off(void);
 void cc2520_radio_set_channel(int channel);
 void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id);
+void cc2520_radio_send(void);
 
+// Radio Interrupt Callbacks
 void cc2520_radio_sfd_occurred(u64 nano_timestamp);
 void cc2520_radio_fifop_occurred(void);
 

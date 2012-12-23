@@ -48,29 +48,37 @@ int init_module()
     state.channel = CC2520_DEF_CHANNEL;
     
     
-    printk(KERN_INFO "Loading CC2520 Kernel Module v0.01...\n");
+    printk(KERN_INFO "loading CC2520 Kernel Module v0.01...\n");
 
     sema_init(&state.radio_sem, 1);
 
     err = cc2520_plat_gpio_init();
     if (err) {
-        printk(KERN_INFO "[CC2520] - Error setting up GPIO pins. Aborting.");
+        printk(KERN_INFO "[CC2520] - gpio driver error. aborting.");
         return 1;
     }
 
     err = cc2520_plat_spi_init();
     if (err) {
-        printk(KERN_ALERT "[cc2520] - Error setting up SPI. Aborting.");
+        printk(KERN_ALERT "[cc2520] - spi driver error. aborting.");
         cc2520_plat_gpio_free();
         return 1;
     }
 
     err = cc2520_interface_init();
     if (err) {
-        printk(KERN_ALERT "[cc2520] - Error setting up character driver. Aborting.");
+        printk(KERN_ALERT "[cc2520] - char driver error. aborting.");
         cc2520_plat_spi_free();
         cc2520_plat_gpio_free();
         return 1;        
+    }
+
+    err = cc2520_radio_init();
+    if (err) {
+        printk(KERN_ALERT "[cc2520] - radio init error. aborting.");
+        cc2520_plat_spi_free();
+        cc2520_plat_gpio_free();
+        cc2520_interface_free();
     }
 
     state.wq = create_singlethread_workqueue(cc2520_name);
@@ -89,8 +97,6 @@ int init_module()
     utimer.function = &callbackFunc; // callback
     hrtimer_start(&utimer, kt, HRTIMER_MODE_REL);
     //printk(KERN_ALERT "HRTTIMER STARTED\n");
-
-    
     return 0;
 }
 

@@ -25,7 +25,7 @@ int main(char ** argv, int argc)
 
 	printf("Turning on the radio...\n");
 	ioctl(file_desc, CC2520_IO_RADIO_INIT, NULL);
-	//ioctl(file_desc, CC2520_IO_RADIO_ON, NULL);
+	ioctl(file_desc, CC2520_IO_RADIO_ON, NULL);
 
 	printf("Sending a test message...\n");
 	char test_msg[] = {0xAA, 0xBB, 0xCC, 0xDD};;

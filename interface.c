@@ -101,7 +101,7 @@ static void interface_ioctl_set_address(struct cc2520_set_address_data * data)
 		return;
 	}
 
-	printk(KERN_INFO "[cc2520] - Setting addr: %d ext_addr: %lld pan_id: %d",
+	printk(KERN_INFO "[cc2520] - setting addr: %d ext_addr: %lld pan_id: %d",
 		ldata.short_addr, ldata.extended_addr, ldata.pan_id);
 	cc2520_radio_set_address(ldata.short_addr, ldata.extended_addr, ldata.pan_id);
 }
@@ -112,15 +112,15 @@ long interface_ioctl(struct file *file,
 {
 	switch (ioctl_num) {
 		case CC2520_IO_RADIO_INIT:
-			printk(KERN_INFO "[cc2520] - Radio Initializing\n");
-			cc2520_radio_init();
+			printk(KERN_INFO "[cc2520] - radio starting\n");
+			cc2520_radio_start();
 			break;
 		case CC2520_IO_RADIO_ON:
-			printk(KERN_INFO "[cc2520] - Radio turning on\n");
+			printk(KERN_INFO "[cc2520] - radio turning on\n");
 			cc2520_radio_on();
 			break;
 		case CC2520_IO_RADIO_OFF:
-			printk(KERN_INFO "[cc2520] - Radio turning off\n");
+			printk(KERN_INFO "[cc2520] - radio turning off\n");
 			cc2520_radio_off();
 			break;
 		case CC2520_IO_RADIO_SET_CHANNEL:
@@ -152,17 +152,17 @@ int cc2520_interface_init()
 	sema_init(&state.tx_done_sem, 0);
 	sema_init(&state.rx_done_sem, 0);
 
-    state.tx_buf_c = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
-    if (!state.tx_buf_c) {
-        result = -EFAULT;
-        goto error;
-    }
-        
-    state.rx_buf_c = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);    
-    if (!state.rx_buf_c) {
-        result = -EFAULT;
-        goto error;
-    }
+	state.tx_buf_c = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
+	if (!state.tx_buf_c) {
+		result = -EFAULT;
+		goto error;
+	}
+		
+	state.rx_buf_c = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);    
+	if (!state.rx_buf_c) {
+		result = -EFAULT;
+		goto error;
+	}
 
 	state.major = register_chrdev(0, cc2520_name, &fops);
 	printk(KERN_INFO "[cc2520] - Char interface registered on %d\n", state.major);
