@@ -3,7 +3,7 @@
 #include "cc2520.h"
 
 // Context: process
-void cc2520_sack_tx()
+void cc2520_sack_tx(u8 *buf, u8 len)
 {
 	// send the packet
 	// setup hr_timer

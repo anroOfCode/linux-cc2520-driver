@@ -44,7 +44,7 @@ static ssize_t interface_write(
 	// wait for an asynchronous callback to occur in
 	// the form of a semaphore. 
 	printk(KERN_INFO "[cc2520] - performing software ack test %d.\n", pkt_len);
-	cc2520_sack_tx();
+	cc2520_sack_tx(state.tx_buf_c, pkt_len);
 	result = down_interruptible(&state.tx_done_sem);
 	if (result)
 		return -ERESTARTSYS;

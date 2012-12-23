@@ -75,6 +75,12 @@ struct cc2520_gpio_state {
 	unsigned int sfd_irq;
 };
 
+enum cc2520_radio_state_enum {
+    CC2520_RADIO_STATE_IDLE,
+    CC2520_RADIO_STATE_RX,
+    CC2520_RADIO_STATE_TX
+};
+
 struct cc2520_state {
 	// Hardware
 	struct cc2520_gpio_state gpios;
@@ -85,19 +91,20 @@ struct cc2520_state {
     u8 *rx_buf_c;
     size_t tx_pkt_len;
 
+    // Allows for only a single rx or tx
+    // to occur simultaneously. 
     struct semaphore tx_sem;
     struct semaphore rx_sem;
 
+    // Used by the character driver
+    // to indicate when a blocking tx
+    // or rx has completed. 
     struct semaphore tx_done_sem;
     struct semaphore rx_done_sem;
 
+    // Results, stored by the callbacks
     int tx_result;
     int rx_result;
-
-    // Radio device and buffers
-    u8 *tx_buf_r;
-    u8 *rx_buf_r;
-
 
     // Spi device and buffers
 	struct spi_device *spi_device;
@@ -110,12 +117,13 @@ struct cc2520_state {
 	u16 pan_id;
 	u8 channel;
 
-	// Transient Packet Information
+    // Radio device and buffers
+    u8 *tx_buf_r;
+    u8 *rx_buf_r;
+
 	u64 sfd_nanos_ts;
 
     struct semaphore radio_sem;
-
-
     int radio_state;
     
     // CURRENTLY UNUSED:
@@ -155,7 +163,7 @@ void cc2520_interface_free(void);
 void cc2520_interface_write_cb(int result);
 
 // Software ACK Layer
-void cc2520_sack_tx(void);
+void cc2520_sack_tx(u8 *buf, u8 len);
 
 extern struct cc2520_state state;
 
@@ -183,7 +191,6 @@ enum cc2520_reg_access_enums {
     CC2520_SREG_MASK      = 0x7F,    // highest address in SREG
     CC2520_CMD_TXRAM_WRITE	  = 0x80, // FIXME: not sure... might need to change
 };
-
 
 typedef union cc2520_status {
 	u16 value;

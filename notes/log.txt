@@ -84,9 +84,6 @@ begin
 -- call upper layer rx_cb with packet 
 
 
-
-
-
 Ieee154MessageLayer
 TinyosNetworkLayer
 UnqiueLayer (Send)
@@ -98,6 +95,67 @@ CollisionAvoidance
 SoftwareAck
 TrafficMonitor
 Driver
+
+----------------------------------
+Events:
+
+Transmit Protocol
+0) Build tx packet
+1) Spin radio lock, if idle set state to TX, unlock
+2) Turn off receiving
+3) Shoot out tx packet
+4) Spin radio lock, set state to IDLE, unlock
+5) Wait for ack packet
+
+Receive Protocol
+On SFD Received:
+0) Spin radio lock, if idle set state to RX, else drop packet and return, unlock
+1) Receive packet
+2) Copy to radio rx buffer
+3) Call receive_process
+3) Spin radio lock, set state to IDLE
+
+Receive Process
+- If packet ACK & matches current TX packet: up(tx_sem)
+- If packet DATA & requires ACK: schedule TX ack.
+
+----------------------------------
+
+TxLock:
+------------------
+lock()
+while (state != IDLE) {
+	unlock()
+	lock()
+}
+state = TX;
+unlock()
+
+
+TxRelease:
+------------------
+lock()
+state = IDLE;
+unlock()
+
+RxLock:
+------------------
+lock()
+if (state != IDLE) {
+	unlock();
+	return;
+}
+state = RX;
+unlock()
+
+RxRelease:
+------------------
+lock()
+state = IDLE
+unlock()
+
+
+
 
 
 
