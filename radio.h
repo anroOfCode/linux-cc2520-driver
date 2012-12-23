@@ -30,6 +30,6 @@ void cc2520_radio_fifop_occurred(void);
 
 int cc2520_radio_tx(u8 *buf, u8 len);
 
-extern struct cc2520_interface *radio_bottom;
+extern struct cc2520_interface *radio_top;
 
 #endif

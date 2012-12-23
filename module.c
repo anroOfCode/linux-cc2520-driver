@@ -46,13 +46,14 @@ static enum hrtimer_restart callbackFunc(struct hrtimer *timer)
 
 void setupBindings(void)
 {
-    radio_top = sack_to_radio;
-    sack_bottom = sack_to_radio;
-    sack_top = lpl_to_sack;
-    lpl_bottom = lpl_to_sack;
-    lpl_top = interface_to_lpl;
-    interface_bottom = interface_to_lpl;
+    radio_top = &sack_to_radio;
+    sack_bottom = &sack_to_radio;
+    sack_top = &lpl_to_sack;
+    lpl_bottom = &lpl_to_sack;
+    lpl_top = &interface_to_lpl;
+    interface_bottom = &interface_to_lpl;
 }
+
 int init_module()
 {
     ktime_t kt;
@@ -112,7 +113,6 @@ int init_module()
         cc2520_interface_free();
         return 1;
     }
-
 
     state.wq = create_singlethread_workqueue(cc2520_name);
 

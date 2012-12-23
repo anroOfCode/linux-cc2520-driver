@@ -48,12 +48,16 @@ static void cc2520_radio_beginRxRead(void);
 static void cc2520_radio_continueRxRead(void *arg);
 static void cc2520_radio_finishRxRead(void *arg);
 
+struct cc2520_interface *radio_top;
+
 //////////////////////////////
 // Initialization & On/Off
 /////////////////////////////
 
 int cc2520_radio_init()
 {
+	radio_top->tx = cc2520_radio_tx;
+
 	int result;
 
 	short_addr = CC2520_DEF_SHORT_ADDR;
@@ -262,6 +266,8 @@ int cc2520_radio_tx(u8 *buf, u8 len)
 	// capture exclusive radio rights to send
 	// build the transmit command seq
 	// write that packet! 
+	radio_top->tx_done(0);
+	return 0;
 }
 
 //////////////////////////////
