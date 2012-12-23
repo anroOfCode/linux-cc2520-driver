@@ -106,7 +106,7 @@ static void interface_ioctl_set_address(struct cc2520_set_address_data *data)
 	cc2520_radio_set_address(ldata.short_addr, ldata.extended_addr, ldata.pan_id);
 }
 
-staic void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data)
+static void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data)
 {
 	int result;
 	struct cc2520_set_txpower_data ldata;
@@ -145,7 +145,8 @@ long interface_ioctl(struct file *file,
 			interface_ioctl_set_address((struct cc2520_set_address_data *) ioctl_param);
 			break;
 		case CC2520_IO_RADIO_SET_TXPOWER:
-
+			interface_ioctl_set_txpower((struct cc2520_set_txpower_data *) ioctl_param);
+			break;
 	}
 
 	return 0;
