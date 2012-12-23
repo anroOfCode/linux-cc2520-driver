@@ -28,8 +28,6 @@ void cc2520_radio_set_txpower(u8 power);
 void cc2520_radio_sfd_occurred(u64 nano_timestamp);
 void cc2520_radio_fifop_occurred(void);
 
-int cc2520_radio_tx(u8 *buf, u8 len);
-
 extern struct cc2520_interface *radio_top;
 
 #endif

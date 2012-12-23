@@ -48,6 +48,8 @@ static void cc2520_radio_beginRxRead(void);
 static void cc2520_radio_continueRxRead(void *arg);
 static void cc2520_radio_finishRxRead(void *arg);
 
+static int cc2520_radio_tx(u8 *buf, u8 len);
+
 struct cc2520_interface *radio_top;
 
 //////////////////////////////
@@ -261,7 +263,7 @@ void cc2520_radio_reset(void)
 /////////////////////////////
 
 // context: process?
-int cc2520_radio_tx(u8 *buf, u8 len)
+static int cc2520_radio_tx(u8 *buf, u8 len)
 {
 	// capture exclusive radio rights to send
 	// build the transmit command seq

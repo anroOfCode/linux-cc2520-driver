@@ -34,6 +34,9 @@ static struct semaphore rx_done_sem;
 static int tx_result;
 static int rx_result;
 
+static void cc2520_interface_tx_done(u8 status);
+static void cc2520_interface_rx_done(u8 *buf, u8 len);
+
 ///////////////////////
 // Interface callbacks
 ///////////////////////
@@ -47,6 +50,10 @@ void cc2520_interface_rx_done(u8 *buf, u8 len)
 {
 
 }
+
+////////////////////
+// Implementation
+////////////////////
 
 // Should accept a 6LowPAN frame, no longer than 127 bytes.
 static ssize_t interface_write(
