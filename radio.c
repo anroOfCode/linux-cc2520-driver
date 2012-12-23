@@ -57,8 +57,25 @@ int cc2520_radio_init()
 {
 	int result;
 
-	spinlock_init(&radio_sl);
+	short_addr = CC2520_DEF_SHORT_ADDR;
+	extended_addr = CC2520_DEF_EXT_ADDR;
+	pan_id = CC2520_DEF_PAN;
+	channel = CC2520_DEF_CHANNEL;
+
+	spin_lock_init(&radio_sl);
 	radio_state = CC2520_RADIO_STATE_IDLE;
+
+	tx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);
+	if (!tx_buf) {
+		result = -EFAULT;
+		goto error;
+	}
+		
+	rx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);    
+	if (!rx_buf) {
+		result = -EFAULT;
+		goto error;
+	}
 
 	tx_buf_r = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
 	if (!tx_buf_r) {
@@ -85,6 +102,15 @@ int cc2520_radio_init()
 			tx_buf_r = 0;
 		}
 
+		if (rx_buf) {
+			kfree(rx_buf);
+			rx_buf = 0;
+		}
+
+		if (tx_buf) {
+			kfree(tx_buf);
+			tx_buf = 0;
+		}
 		return result;
 }
 
@@ -98,6 +124,16 @@ void cc2520_radio_free()
 	if (tx_buf_r) {
 		kfree(tx_buf_r);
 		tx_buf_r = 0;
+	}
+
+	if (rx_buf) {
+		kfree(rx_buf);
+		rx_buf = 0;
+	}
+
+	if (tx_buf) {
+		kfree(tx_buf);
+		tx_buf = 0;
 	}
 }
 
@@ -222,7 +258,7 @@ void cc2520_radio_reset()
 /////////////////////////////
 
 // context: process?
-void cc2520_radio_tx(u8 *buf, u8 len)
+int cc2520_radio_tx(u8 *buf, u8 len)
 {
 	// capture exclusive radio rights to send
 	// build the transmit command seq

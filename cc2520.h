@@ -6,7 +6,7 @@
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
 
-#include 'radio.h'
+#include "radio.h"
 
 //////////////////////////////
 // Configuration for driver
@@ -124,13 +124,6 @@ struct cc2520_state {
 	struct work_struct work;    /* for deferred work */
 	struct workqueue_struct *wq;
 };
-
-// Radio
-
-
-// Radio Interrupt Callbacks
-void cc2520_radio_sfd_occurred(u64 nano_timestamp);
-void cc2520_radio_fifop_occurred(void);
 
 // Platform
 int cc2520_plat_gpio_init(void);

@@ -42,15 +42,8 @@ int init_module()
     int err = 0;
 
     memset(&state, 0, sizeof(struct cc2520_state));
-    state.short_addr = CC2520_DEF_SHORT_ADDR;
-    state.extended_addr = CC2520_DEF_EXT_ADDR;
-    state.pan_id = CC2520_DEF_PAN;
-    state.channel = CC2520_DEF_CHANNEL;
-    
     
     printk(KERN_INFO "loading CC2520 Kernel Module v0.01...\n");
-
-    sema_init(&state.radio_sem, 1);
 
     err = cc2520_plat_gpio_init();
     if (err) {

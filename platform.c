@@ -109,18 +109,6 @@ int cc2520_plat_spi_init()
 {
     int result;
 
-    state.tx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);
-    if (!state.tx_buf) {
-        result = -EFAULT;
-        goto error;
-    }
-        
-    state.rx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);    
-    if (!state.rx_buf) {
-        result = -EFAULT;
-        goto error;
-    }
-
     result = cc2520_spi_add_to_bus();
     if (result < 0)
         goto error;
@@ -133,17 +121,6 @@ int cc2520_plat_spi_init()
 
     error:
         spi_unregister_driver(&cc2520_spi_driver);
-
-        if (state.rx_buf) {
-            kfree(state.rx_buf);
-            state.rx_buf = 0;
-        }
-
-        if (state.tx_buf) {
-            kfree(state.tx_buf);
-            state.tx_buf = 0;
-        }
-
         return result;
 }
 
@@ -153,16 +130,6 @@ void cc2520_plat_spi_free()
         spi_unregister_device(state.spi_device);
 
     spi_unregister_driver(&cc2520_spi_driver);
-
-    if (state.rx_buf) {
-        kfree(state.rx_buf);
-        state.rx_buf = 0;
-    }
-
-    if (state.tx_buf) {
-        kfree(state.tx_buf);
-        state.tx_buf = 0;
-    }
 }
 
 //////////////////////////
