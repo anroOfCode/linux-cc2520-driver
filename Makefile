@@ -3,7 +3,7 @@
 DRIVER = spike
 
 TARGET = cc2520
-OBJS = radio.o interface.o module.o platform.o sack.o
+OBJS = radio.o interface.o module.o platform.o sack.o lpl.o
 
 obj-m += $(TARGET).o
 cc2520-objs = radio.o interface.o module.o platform.o sack.o

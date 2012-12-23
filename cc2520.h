@@ -6,8 +6,6 @@
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
 
-#include "radio.h"
-
 //////////////////////////////
 // Configuration for driver
 /////////////////////////////
@@ -55,6 +53,7 @@
 #define SPI_BUS_CS0 0
 #define SPI_BUS_SPEED 500000
 #define SPI_BUFF_SIZE 256
+#define PKT_BUFF_SIZE 127
 
 // Defaults for Radio Operation
 #define CC2520_DEF_CHANNEL 26
@@ -64,84 +63,39 @@
 #define CC2520_DEF_EXT_ADDR 0x01
 
 
+// XOSC Period in nanoseconds.
+#define CC2520_XOSC_PERIOD 31
+
 //////////////////////////////
 // Structs and definitions
 /////////////////////////////
 
-// XOSC Period in nanoseconds.
-#define CC2520_XOSC_PERIOD 31
+struct cc2520_interface {
+    int (*tx)(u8 *buf, u8 len);
+    void (*tx_done)(u8 status);
+    void (*rx_done)(u8 *buf, u8 len);
+};
 
-#define PKT_BUFF_SIZE 127
+///
+// KEEP THESE AROUND FOR LEGACY REASONS:
+//
 
 struct cc2520_gpio_state {
 	unsigned int fifop_irq;
 	unsigned int sfd_irq;
 };
 
-enum cc2520_radio_state_enum {
-    CC2520_RADIO_STATE_IDLE,
-    CC2520_RADIO_STATE_RX,
-    CC2520_RADIO_STATE_TX
-};
-
 struct cc2520_state {
 	// Hardware
 	struct cc2520_gpio_state gpios;
-
-    ////////////////////////////////////
-	// Character device and buffers
-    ////////////////////////////////////
-	unsigned int major;
-    u8 *tx_buf_c;
-    u8 *rx_buf_c;
-    size_t tx_pkt_len;
-
-    // Allows for only a single rx or tx
-    // to occur simultaneously. 
-    struct semaphore tx_sem;
-    struct semaphore rx_sem;
-
-    // Used by the character driver
-    // to indicate when a blocking tx
-    // or rx has completed. 
-    struct semaphore tx_done_sem;
-    struct semaphore rx_done_sem;
-
-    // Results, stored by the callbacks
-    int tx_result;
-    int rx_result;
-
-    ////////////////////////////////////
-    // Spi device and buffers
-    //////////////////////////////////
 	struct spi_device *spi_device;
-
-    ////////////////////////////////////
-    // Radio parameters
-    //////////////////////////////////
     
     // CURRENTLY UNUSED:
 	struct work_struct work;    /* for deferred work */
 	struct workqueue_struct *wq;
 };
 
-// Platform
-int cc2520_plat_gpio_init(void);
-void cc2520_plat_gpio_free(void);
-
-int cc2520_plat_spi_init(void);
-void cc2520_plat_spi_free(void);
-
-// Interface
-int cc2520_interface_init(void);
-void cc2520_interface_free(void);
-void cc2520_interface_write_cb(int result);
-
-// Software ACK Layer
-void cc2520_sack_tx(u8 *buf, u8 len);
-
 extern struct cc2520_state state;
-
 extern const char cc2520_name[];
 
 //////////////////////////////

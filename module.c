@@ -10,6 +10,11 @@
 #include <linux/workqueue.h>
 
 #include "cc2520.h"
+#include "radio.h"
+#include "platform.h"
+#include "lpl.h"
+#include "interface.h"
+#include "sack.h"
 
 #define DRIVER_AUTHOR "Andrew Robinson <androbin@umich.edu>"
 #define DRIVER_DESC   "A driver for the CC2520 radio. Be afraid."

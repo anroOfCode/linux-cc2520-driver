@@ -15,19 +15,19 @@
 #include <linux/workqueue.h>
 
 #include "cc2520.h"
+#include "radio.h"
 #include "radio_config.h"
 
+static u16 short_addr;
+static u64 extended_addr;
+static u16 pan_id;
+static u8 channel;
 
 static struct spi_message msg;
 static struct spi_transfer tsfer;
 
 static u8 *tx_buf;
 static u8 *rx_buf;
-
-static u16 short_addr;
-static u64 extended_addr;
-static u16 pan_id;
-static u8 channel;
 
 static u8 *tx_buf_r;
 static u8 *rx_buf_r;
@@ -39,7 +39,6 @@ static u64 sfd_nanos_ts;
 
 static spinlock_t radio_sl;
 static int radio_state;
-
 
 static cc2520_status_t cc2520_radio_strobe(u8 cmd);
 static void cc2520_radio_writeRegister(u8 reg, u8 value);
@@ -248,7 +247,7 @@ void cc2520_radio_fifop_occurred()
 	//queue_work(wq, &work);
 }
 
-void cc2520_radio_reset()
+void cc2520_radio_reset(void)
 {
 
 }

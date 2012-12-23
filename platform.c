@@ -11,6 +11,8 @@
 #include <linux/time.h>
 
 #include "cc2520.h"
+#include "radio.h"
+#include "platform.h"
 
 //////////////////////////
 // SPI Stuff
