@@ -23,6 +23,11 @@ int main(char ** argv, int argc)
 	addr_data.pan_id = 0x22;
 	ioctl(file_desc, CC2520_IO_RADIO_SET_ADDRESS, &addr_data);
 
+	printf("Setting tx power\n");
+	struct cc2520_set_txpower_data txpower_data;
+	txpower_data.txpower = CC2520_TXPOWER_0DBM;
+	ioctl(file_desc, CC2520_IO_RADIO_SET_TXPOWER);
+	
 	printf("Turning on the radio...\n");
 	ioctl(file_desc, CC2520_IO_RADIO_INIT, NULL);
 	ioctl(file_desc, CC2520_IO_RADIO_ON, NULL);

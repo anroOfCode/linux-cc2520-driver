@@ -113,9 +113,12 @@ struct cc2520_state {
 	// Transient Packet Information
 	u64 sfd_nanos_ts;
 
-    // CURRENTLY UNUSED:
-	struct semaphore radio_sem;
+    struct semaphore radio_sem;
 
+
+    int radio_state;
+    
+    // CURRENTLY UNUSED:
 	struct work_struct work;    /* for deferred work */
 	struct workqueue_struct *wq;
 };
@@ -132,6 +135,7 @@ void cc2520_radio_on(void);
 void cc2520_radio_off(void);
 void cc2520_radio_set_channel(int channel);
 void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id);
+void cc2520_radio_set_txpower(u8 power);
 void cc2520_radio_send(void);
 
 // Radio Interrupt Callbacks

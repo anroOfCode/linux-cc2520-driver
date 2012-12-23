@@ -38,6 +38,8 @@ int cc2520_radio_init()
 {
 	int result;
 
+	sema_init(&state.radio_sem, 1);
+
 	state.tx_buf_r = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
 	if (!state.tx_buf_r) {
 		result = -EFAULT;
@@ -161,10 +163,20 @@ void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id)
 	cc2520_radio_writeMemory(CC2520_MEM_ADDR_BASE, addr_mem, 12);
 }
 
+void cc2520_radio_set_txpower(u8 power)
+{
+	cc2520_txpower_t txpower;
+	txpower = cc2520_txpower_default;
+
+	txpower.f.pa_power = power;
+
+	cc2520_radio_writeRegister(CC2520_TXPOWER, txpower.value);
+}
 //////////////////////////////
 // Callback Hooks
 /////////////////////////////
 
+// context: interrupt
 void cc2520_radio_sfd_occurred(u64 nano_timestamp)
 {
 	// Store the SFD time for use later in timestamping
@@ -172,6 +184,7 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp)
 	state.sfd_nanos_ts = nano_timestamp;
 }
 
+// context: interrupt
 void cc2520_radio_fifop_occurred()
 {
 	cc2520_radio_beginRxRead();
@@ -186,9 +199,13 @@ void cc2520_radio_reset()
 //////////////////////////////
 // Transmit Engine
 /////////////////////////////
+
+// context: process?
 void cc2520_radio_send()
 {
-
+	// capture exclusive radio rights to send
+	// build the transmit command seq
+	// write that packet! 
 }
 
 

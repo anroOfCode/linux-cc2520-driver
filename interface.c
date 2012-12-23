@@ -74,7 +74,7 @@ static ssize_t interface_read(struct file *filp, char __user *buff, size_t count
 	return 0;
 }
 
-static void interface_ioctl_set_channel(struct cc2520_set_channel_data * data)
+static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data)
 {
 	int result;
 	struct cc2520_set_channel_data ldata;
@@ -82,7 +82,7 @@ static void interface_ioctl_set_channel(struct cc2520_set_channel_data * data)
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_channel_data));
 
 	if (result) {
-		printk(KERN_INFO "[cc2520] - an error occurred setting the channel");
+		printk(KERN_ALERT "[cc2520] - an error occurred setting the channel");
 		return;
 	}
 
@@ -90,20 +90,35 @@ static void interface_ioctl_set_channel(struct cc2520_set_channel_data * data)
 	cc2520_radio_set_channel(ldata.channel);
 }
 
-static void interface_ioctl_set_address(struct cc2520_set_address_data * data)
+static void interface_ioctl_set_address(struct cc2520_set_address_data *data)
 {
 	int result;
 	struct cc2520_set_address_data ldata;
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_address_data));
 
 	if (result) {
-		printk(KERN_INFO "[cc2520] - an error occurred setting the address");
+		printk(KERN_ALERT "[cc2520] - an error occurred setting the address");
 		return;
 	}
 
 	printk(KERN_INFO "[cc2520] - setting addr: %d ext_addr: %lld pan_id: %d",
 		ldata.short_addr, ldata.extended_addr, ldata.pan_id);
 	cc2520_radio_set_address(ldata.short_addr, ldata.extended_addr, ldata.pan_id);
+}
+
+staic void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data)
+{
+	int result;
+	struct cc2520_set_txpower_data ldata;
+	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_txpower_data));
+
+	if (result) {
+		printk(KERN_ALERT "[cc2520] - an error occurred setting the txpower");
+		return;
+	}
+
+	printk(KERN_INFO "[cc2520] - setting txpower: %d", ldata.txpower);
+	cc2520_radio_set_txpower(ldata.txpower);
 }
 
 long interface_ioctl(struct file *file,
@@ -129,6 +144,8 @@ long interface_ioctl(struct file *file,
 		case CC2520_IO_RADIO_SET_ADDRESS:
 			interface_ioctl_set_address((struct cc2520_set_address_data *) ioctl_param);
 			break;
+		case CC2520_IO_RADIO_SET_TXPOWER:
+
 	}
 
 	return 0;
@@ -185,8 +202,17 @@ int cc2520_interface_init()
 
 void cc2520_interface_free()
 {
-	down(&state.tx_sem);
-	down(&state.rx_sem);
+	int result;
+
+	result = down_interruptible(&state.tx_sem);
+	if (result) {
+		printk("[cc2520] - critical error occurred on free.");
+	}
+
+	result = down_interruptible(&state.rx_sem);
+	if (result) {
+		printk("[cc2520] - critical error occurred on free.");
+	}
 
 	unregister_chrdev(state.major, cc2520_name);
 
