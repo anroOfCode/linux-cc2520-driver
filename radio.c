@@ -10,6 +10,7 @@
 #include <linux/spi/spi.h>
 #include <linux/delay.h>
 #include <linux/semaphore.h>
+#include <linux/spinlock.h>
 #include <linux/sched.h>
 #include <linux/workqueue.h>
 
@@ -17,14 +18,32 @@
 #include "radio_config.h"
 
 
-struct spi_message msg;
-struct spi_transfer tsfer;
+static struct spi_message msg;
+static struct spi_transfer tsfer;
+
+static u8 *tx_buf;
+static u8 *rx_buf;
+
+static u16 short_addr;
+static u64 extended_addr;
+static u16 pan_id;
+static u8 channel;
+
+static u8 *tx_buf_r;
+static u8 *rx_buf_r;
+
+static u8 * cur_tx_buf;
+static u8 cur_tx_len;
+
+static u64 sfd_nanos_ts;
+
+static spinlock_t radio_sl;
+static int radio_state;
+
 
 static cc2520_status_t cc2520_radio_strobe(u8 cmd);
 static void cc2520_radio_writeRegister(u8 reg, u8 value);
 static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len);
-
-//static void cc2520_radio_download_packet(struct work_struct *work);
 
 static void cc2520_radio_beginRxRead(void);
 static void cc2520_radio_continueRxRead(void *arg);
@@ -38,16 +57,17 @@ int cc2520_radio_init()
 {
 	int result;
 
-	sema_init(&state.radio_sem, 1);
+	spinlock_init(&radio_sl);
+	radio_state = CC2520_RADIO_STATE_IDLE;
 
-	state.tx_buf_r = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
-	if (!state.tx_buf_r) {
+	tx_buf_r = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
+	if (!tx_buf_r) {
 		result = -EFAULT;
 		goto error;
 	}
 		
-	state.rx_buf_r = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);    
-	if (!state.rx_buf_r) {
+	rx_buf_r = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);    
+	if (!rx_buf_r) {
 		result = -EFAULT;
 		goto error;
 	}
@@ -55,14 +75,14 @@ int cc2520_radio_init()
 	return 0;
 
 	error:
-		if (state.rx_buf_r) {
-			kfree(state.rx_buf_r);
-			state.rx_buf_r = 0;     
+		if (rx_buf_r) {
+			kfree(rx_buf_r);
+			rx_buf_r = 0;     
 		}
 
-		if (state.tx_buf_r) {
-			kfree(state.tx_buf_r);
-			state.tx_buf_r = 0;
+		if (tx_buf_r) {
+			kfree(tx_buf_r);
+			tx_buf_r = 0;
 		}
 
 		return result;
@@ -70,20 +90,21 @@ int cc2520_radio_init()
 
 void cc2520_radio_free()
 {
-	if (state.rx_buf_r) {
-		kfree(state.rx_buf_r);
-		state.rx_buf_r = 0;
+	if (rx_buf_r) {
+		kfree(rx_buf_r);
+		rx_buf_r = 0;
 	}
 
-	if (state.tx_buf_r) {
-		kfree(state.tx_buf_r);
-		state.tx_buf_r = 0;
+	if (tx_buf_r) {
+		kfree(tx_buf_r);
+		tx_buf_r = 0;
 	}
 }
 
 void cc2520_radio_start()
 {
-	//INIT_WORK(&state.work, cc2520_radio_download_packet);
+	//INIT_WORK(&work, cc2520_radio_download_packet);
+
 	tsfer.cs_change = 1;
 
 	// 200uS Reset Pulse.
@@ -111,8 +132,8 @@ void cc2520_radio_start()
 
 void cc2520_radio_on()
 {
-	cc2520_radio_set_channel(state.channel & CC2520_CHANNEL_MASK);
-	cc2520_radio_set_address(state.short_addr, state.extended_addr, state.pan_id);
+	cc2520_radio_set_channel(channel & CC2520_CHANNEL_MASK);
+	cc2520_radio_set_address(short_addr, extended_addr, pan_id);
 	cc2520_radio_strobe(CC2520_CMD_SRXON);
 }
 
@@ -181,14 +202,14 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp)
 {
 	// Store the SFD time for use later in timestamping
 	// incoming/outgoing packets.
-	state.sfd_nanos_ts = nano_timestamp;
+	sfd_nanos_ts = nano_timestamp;
 }
 
 // context: interrupt
 void cc2520_radio_fifop_occurred()
 {
 	cc2520_radio_beginRxRead();
-	//queue_work(state.wq, &state.work);
+	//queue_work(wq, &work);
 }
 
 void cc2520_radio_reset()
@@ -201,13 +222,12 @@ void cc2520_radio_reset()
 /////////////////////////////
 
 // context: process?
-void cc2520_radio_send()
+void cc2520_radio_tx(u8 *buf, u8 len)
 {
 	// capture exclusive radio rights to send
 	// build the transmit command seq
 	// write that packet! 
 }
-
 
 //////////////////////////////
 // Receiver Engine
@@ -218,12 +238,12 @@ static void cc2520_radio_beginRxRead()
 	int status;
 
 	tsfer.len = 0;
-	state.tx_buf[tsfer.len++] = CC2520_CMD_RXBUF;
-	state.tx_buf[tsfer.len++] = 0;
+	tx_buf[tsfer.len++] = CC2520_CMD_RXBUF;
+	tx_buf[tsfer.len++] = 0;
 
 	tsfer.cs_change = 0;
 
-	memset(state.rx_buf, 0, SPI_BUFF_SIZE);
+	memset(rx_buf, 0, SPI_BUFF_SIZE);
 
 	spi_message_init(&msg);
 	msg.complete = cc2520_radio_continueRxRead;
@@ -242,11 +262,11 @@ static void cc2520_radio_continueRxRead(void *arg)
 	// async operation called in beginRxRead.
 	int len;
 
-	len = state.rx_buf[1];
+	len = rx_buf[1];
 
 	tsfer.len = 0;
 	for (i = 0; i < len; i++) 
-		state.tx_buf[tsfer.len++] = 0;
+		tx_buf[tsfer.len++] = 0;
 
 	tsfer.cs_change = 1;
 
@@ -270,6 +290,7 @@ static void cc2520_radio_finishRxRead(void *arg)
 
 	printk(KERN_INFO "[cc2520] - Read %d bytes from radio.", len);
 
+
 	// At this point we should schedule the system to move the
 	// RX into a different buffer. For now just print it. 
 	buff = kmalloc(len*5 + 1, GFP_ATOMIC);
@@ -277,7 +298,7 @@ static void cc2520_radio_finishRxRead(void *arg)
 		buff_ptr = buff;
 		for (i = 0; i < len; i++)
 		{
-			buff_ptr += sprintf(buff_ptr, " 0x%02X", state.rx_buf[i]);
+			buff_ptr += sprintf(buff_ptr, " 0x%02X", rx_buf[i]);
 		}
 		sprintf(buff_ptr,"\n");
 		*(buff_ptr + 1) = '\0';
@@ -297,14 +318,14 @@ static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len)
 	int i;
 
 	tsfer.len = 0;
-	state.tx_buf[tsfer.len++] = CC2520_CMD_MEMORY_WRITE | ((mem_addr >> 8) & 0xFF);
-	state.tx_buf[tsfer.len++] = mem_addr & 0xFF;
+	tx_buf[tsfer.len++] = CC2520_CMD_MEMORY_WRITE | ((mem_addr >> 8) & 0xFF);
+	tx_buf[tsfer.len++] = mem_addr & 0xFF;
 
 	for (i=0; i<len; i++) {
-		state.tx_buf[tsfer.len++] = value[i];
+		tx_buf[tsfer.len++] = value[i];
 	}
 
-	memset(state.rx_buf, 0, SPI_BUFF_SIZE);
+	memset(rx_buf, 0, SPI_BUFF_SIZE);
 
 	spi_message_init(&msg);
 	msg.complete = spike_completion_handler;
@@ -318,21 +339,21 @@ static void cc2520_radio_writeRegister(u8 reg, u8 value)
 {
 	int status;
 
-	tsfer.tx_buf = state.tx_buf;
-	tsfer.rx_buf = state.rx_buf;
+	tsfer.tx_buf = tx_buf;
+	tsfer.rx_buf = rx_buf;
 	tsfer.len = 0;
 
 	if (reg <= CC2520_FREG_MASK) {
-		state.tx_buf[tsfer.len++] = CC2520_CMD_REGISTER_WRITE | reg;
+		tx_buf[tsfer.len++] = CC2520_CMD_REGISTER_WRITE | reg;
 	}
 	else {
-		state.tx_buf[tsfer.len++] = CC2520_CMD_MEMORY_WRITE;
-		state.tx_buf[tsfer.len++] = reg;
+		tx_buf[tsfer.len++] = CC2520_CMD_MEMORY_WRITE;
+		tx_buf[tsfer.len++] = reg;
 	}
 
-	state.tx_buf[tsfer.len++] = value;
+	tx_buf[tsfer.len++] = value;
 
-	memset(state.rx_buf, 0, SPI_BUFF_SIZE);
+	memset(rx_buf, 0, SPI_BUFF_SIZE);
 
 	spi_message_init(&msg);
 	msg.complete = spike_completion_handler;
@@ -347,10 +368,10 @@ static cc2520_status_t cc2520_radio_strobe(u8 cmd)
 	int status;
 	cc2520_status_t ret;
 
-	state.tx_buf[0] = cmd;
+	tx_buf[0] = cmd;
 	tsfer.len = 1;
 
-	memset(state.rx_buf, 0, SPI_BUFF_SIZE);
+	memset(rx_buf, 0, SPI_BUFF_SIZE);
 
 	spi_message_init(&msg);
 	msg.complete = spike_completion_handler;
@@ -359,6 +380,6 @@ static cc2520_status_t cc2520_radio_strobe(u8 cmd)
 
 	status = spi_sync(state.spi_device, &msg);
 
-	ret.value = state.rx_buf[0];
+	ret.value = rx_buf[0];
 	return ret;
 }
