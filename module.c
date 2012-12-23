@@ -59,6 +59,8 @@ int init_module()
     ktime_t kt;
     int err = 0;
 
+    setupBindings();
+    
     memset(&state, 0, sizeof(struct cc2520_state));
     
     printk(KERN_INFO "loading CC2520 Kernel Module v0.01...\n");
