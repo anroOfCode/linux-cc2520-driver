@@ -23,8 +23,6 @@ struct spi_transfer tsfer;
 static cc2520_status_t cc2520_radio_strobe(u8 cmd);
 static void cc2520_radio_writeRegister(u8 reg, u8 value);
 static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len);
-static void cc2520_radio_readData(u8 *data, u8 len);
-static void cc2520_radio_readLength(u8 *len);
 
 //static void cc2520_radio_download_packet(struct work_struct *work);
 

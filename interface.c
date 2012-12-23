@@ -4,15 +4,47 @@
 #include <linux/fs.h>
 #include <asm/uaccess.h>
 #include <linux/types.h>
+#include <linux/semaphore.h>
+#include <linux/slab.h>
 #include "ioctl.h"
 #include "cc2520.h"
 
+// Should accept a 6LowPAN frame, no longer than 127 bytes.
 static ssize_t interface_write(
 	struct file *filp, const char *in_buf, size_t len, loff_t * off)
 {
-	
-	printk(KERN_INFO "Data received\n");
-	return len;
+	int result;
+	size_t pkt_len;
+	// If BLOCK tx_semi_down
+	// If NBLOCK try_tx_semi_down
+
+	// Copy data to driver message buffer
+	// Invoke next layer transmission 
+	if (filp->f_flags & O_NONBLOCK) {
+		result = down_trylock(&state.tx_sem);
+		if (result)
+			return -EAGAIN;
+	}
+	else {
+		result = down_interruptible(&state.tx_sem);
+		if (result)
+			return -ERESTARTSYS;
+	}
+
+	printk(KERN_INFO "[cc2520] - write lock obtained.\n");
+
+	pkt_len = max(len, (size_t)127);
+
+	if (copy_from_user(state.tx_buf_c, in_buf, pkt_len)) {
+		result = -EFAULT;
+		goto error;
+	}
+
+	return pkt_len;
+
+	error:
+		up(&state.tx_sem);
+		return -EFAULT;
 }
 
 static ssize_t interface_read(struct file *filp, char __user *buff, size_t count,
@@ -92,12 +124,56 @@ struct file_operations fops = {
 
 int cc2520_interface_init()
 {
+	int result; 
+
+	sema_init(&state.tx_sem, 1);
+	sema_init(&state.rx_sem, 1);
+
+    state.tx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);
+    if (!state.tx_buf) {
+        result = -EFAULT;
+        goto error;
+    }
+        
+    state.rx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);    
+    if (!state.rx_buf) {
+        result = -EFAULT;
+        goto error;
+    }
+
 	state.major = register_chrdev(0, cc2520_name, &fops);
 	printk(KERN_INFO "[cc2520] - Char interface registered on %d\n", state.major);
 	return 0;
+
+	error:
+
+	if (state.rx_buf_c) {
+		kfree(state.rx_buf_c);
+		state.rx_buf_c = 0;		
+	}
+
+	if (state.tx_buf_c) {
+		kfree(state.tx_buf_c);
+		state.tx_buf_c = 0;
+	}
+
+	return result;
 }
 
 void cc2520_interface_free()
 {
+	down(&state.tx_sem);
+	down(&state.rx_sem);
+
 	unregister_chrdev(state.major, cc2520_name);
+
+	if (state.rx_buf_c) {
+		kfree(state.rx_buf_c);
+		state.rx_buf_c = 0;		
+	}
+
+	if (state.tx_buf_c) {
+		kfree(state.tx_buf_c);
+		state.tx_buf_c = 0;
+	}
 }

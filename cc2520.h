@@ -77,9 +77,15 @@ struct cc2520_state {
 	// Hardware
 	struct cc2520_gpio_state gpios;
 
-	// Character Device
+	// Character Device and buffers
 	unsigned int major;
+    u8 *tx_buf_c;
+    u8 *rx_buf_c; 
+    struct semaphore tx_sem;
+    struct semaphore rx_sem;
+    
 
+    // Spi device and buffers
 	struct spi_device *spi_device;
 	u8 *tx_buf;
 	u8 *rx_buf;
@@ -97,7 +103,6 @@ struct cc2520_state {
 
 	struct work_struct work;    /* for deferred work */
 	struct workqueue_struct *wq;
-
 };
 
 // Radio

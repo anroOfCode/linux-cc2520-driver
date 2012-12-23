@@ -1,0 +1,104 @@
+-------------------------
+Experiment:
+- How to reduce latency from the detection of the fifop flag to the beginning
+  of the SPI transaction.
+
+Hypothesis:
+- We are currently using a worker_queue, scheduling the entire SPI operation
+  inside this. By calling a spi_async operation instead we might be able to
+  reduce the latency significantly.
+
+Data:
+- Current latency using worker_queue: 190uS, 120uS, 106uS, 111uS, 110uS
+- New latency using async_spi: 91uS, 75uS, 94uS, 73uS, 80uS
+
+Conclusions:
+- Improved results! ~100% faster.
+- Scheduling a worker_queue and then calling spi_sync likely actually
+  resulted in a double worker_queue scheduling, with some overhead to
+  init some locks and flags. Doing it this way effectively cut
+  one operation out of the process.
+
+-------------------------
+Low Power Listening:
+- Luckily we don't have to implement the receiving parts of LPL. Just the automatic retried sending. 
+
+Software Ack:
+- This layer should sit at the top and basically look at all the packets
+  being sent/recieved. Block on non-broadcast sent packets, auto send acks for received packets.
+
+
+read() Operation:
+- If no received packet, block if BLOCKING, else return -EAGAIN
+- If packet in buffer, return instantly
+
+From Write Call:
+- Spinlock rx_status flag, if ~IDLE set to BUSY.
+- Setup bookkeeping and call software_ack_begin
+- Call semaphore_down()
+
+From Software Ack:
+- Call LPL.send
+- 
+
+From LPL:
+- Repeatedly send packet
+- Wait for stop sending
+
+
+
+
+write() Operation:
+- If packet in tx buffer (called from another thread?), block if BLOCKING, else return -EAGAIN
+- If no packet, block until packet fully transmitted, or timeout occurs. 
+
+////////// Things Needed ///////////
+- Random Collision Control
+- Low Power Listening
+- Software Acknowledgment
+
+Notes on Software Acknowledgment:
+
+Send:
+==========================
+begin
+--------------------------
+- spi_async the send.
+- save callback
+- setup hr_timer callback (1ms) in the future
+
+hr_timer cb
+----------------------------
+- call upper layer tx_cb with failed. 
+
+
+Receive (IDLE):
+==========================
+begin
+-----------------------
+- if is ACK packet of current TX packet:
+-- call upper layer tx_cb with success
+- else:
+-- if message requires ack:
+--- spi_async the send. 
+-- call upper layer rx_cb with packet 
+
+
+
+
+
+Ieee154MessageLayer
+TinyosNetworkLayer
+UnqiueLayer (Send)
+PacketLinkLayer (PacketAcknowledgements <- SoftwareAck)
+LowPowerListening (PacketAcknowledgements <- SoftwareAck)
+MessageBufferLayer
+UniqueLayer(RadioReceiver)
+CollisionAvoidance
+SoftwareAck
+TrafficMonitor
+Driver
+
+
+
+
