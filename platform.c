@@ -151,8 +151,7 @@ static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id)
     nanos = timespec_to_ns(&ts);
     gpio_val = gpio_get_value(CC2520_SFD);
 
-    DBG((KERN_INFO "[cc2520] - sfd interrupt occurred at %lld, %d\n", (long long int)nanos, gpio_val));        
-
+    DBG((KERN_INFO "[cc2520] - sfd interrupt occurred at %lld, %d\n", (long long int)nanos, gpio_val));
 
     cc2520_radio_sfd_occurred(nanos, gpio_val);
     return IRQ_HANDLED;

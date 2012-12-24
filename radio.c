@@ -47,6 +47,10 @@ enum cc2520_radio_state_enum {
     CC2520_RADIO_STATE_IDLE,
     CC2520_RADIO_STATE_RX,
     CC2520_RADIO_STATE_TX,
+    CC2520_RADIO_STATE_TX_SFD_DONE,
+    CC2520_RADIO_STATE_TX_SPI_DONE,
+    CC2520_RADIO_STATE_TX_2_RX,
+    CC2520_RADIO_STATE_CONFIG
 };
 
 static cc2520_status_t cc2520_radio_strobe(u8 cmd);
@@ -108,16 +112,48 @@ int cc2520_radio_idle_lock(int state)
 	return 0;
 }
 
-int cc2520_radio_tx_unlock(void)
+int cc2520_radio_tx_unlock_spi(void)
 {
 	spin_lock(&radio_sl);
 	if (radio_state == CC2520_RADIO_STATE_TX) {
-		radio_state = CC2520_RADIO_STATE_IDLE;
+		radio_state = CC2520_RADIO_STATE_TX_SPI_DONE;
+		spin_unlock(&radio_sl);
+		return 0;
+	}
+	else if (radio_state == CC2520_RADIO_STATE_TX_SFD_DONE) {
+		radio_state = CC2520_RADIO_STATE_TX_2_RX;
 		spin_unlock(&radio_sl);
 		return 1;
 	}
 	spin_unlock(&radio_sl);
 	return 0;
+}
+
+int cc2520_radio_tx_unlock_sfd(void)
+{
+	spin_lock(&radio_sl);
+	if (radio_state == CC2520_RADIO_STATE_TX) {
+		radio_state = CC2520_RADIO_STATE_TX_SFD_DONE;
+		spin_unlock(&radio_sl);
+		return 0;
+	}
+	else if (radio_state == CC2520_RADIO_STATE_TX_SPI_DONE) {
+		radio_state = CC2520_RADIO_STATE_TX_2_RX;
+		spin_unlock(&radio_sl);
+		return 1;
+	}
+	spin_unlock(&radio_sl);
+	return 0;
+}
+
+void cc2520_radio_rx_lock(void)
+{
+	spin_lock(&radio_sl);
+	if (radio_state == CC2520_RADIO_STATE_IDLE ||
+			radio_state == CC2520_RADIO_STATE_RX) {
+		radio_state = CC2520_RADIO_STATE_RX;
+	}
+	spin_unlock(&radio_sl);
 }
 
 int cc2520_radio_lock_status(void)
@@ -224,7 +260,7 @@ void cc2520_radio_free()
 void cc2520_radio_start()
 {
 	//INIT_WORK(&work, cc2520_radio_download_packet);
-
+	cc2520_radio_lock(CC2520_RADIO_STATE_CONFIG);
 	tsfer.cs_change = 1;
 
 	// 200uS Reset Pulse.
@@ -248,18 +284,23 @@ void cc2520_radio_start()
 	cc2520_radio_writeRegister(CC2520_FRMCTRL0, cc2520_frmctrl0_default.value);
 	cc2520_radio_writeRegister(CC2520_FRMFILT1, cc2520_frmfilt1_default.value);
 	cc2520_radio_writeRegister(CC2520_SRCMATCH, cc2520_srcmatch_default.value);   
+	cc2520_radio_unlock();
 }
 
 void cc2520_radio_on()
 {
+	cc2520_radio_lock(CC2520_RADIO_STATE_CONFIG);
 	cc2520_radio_set_channel(channel & CC2520_CHANNEL_MASK);
 	cc2520_radio_set_address(short_addr, extended_addr, pan_id);
 	cc2520_radio_strobe(CC2520_CMD_SRXON);
+	cc2520_radio_unlock();
 }
 
 void cc2520_radio_off()
 {
+	cc2520_radio_lock(CC2520_RADIO_STATE_CONFIG);
 	cc2520_radio_strobe(CC2520_CMD_SRFOFF);
+	cc2520_radio_unlock();
 }
 
 static void spike_completion_handler(void *arg)
@@ -323,6 +364,7 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 	// Store the SFD time for use later in timestamping
 	// incoming/outgoing packets.
 	sfd_nanos_ts = nano_timestamp;
+
 	if (is_high) {
 		if (cc2520_radio_idle_lock(CC2520_RADIO_STATE_RX)) {
 			DBG((KERN_INFO "[cc2520] - beginning read op.\n"));
@@ -333,7 +375,7 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 	}
 	else {
 		// SFD falling indicates TX completion.
-		if (cc2520_radio_lock_status() == CC2520_RADIO_STATE_TX) {
+		if (cc2520_radio_tx_unlock_sfd()) {
 			cc2520_radio_completeTx();				
 		}
 	}
@@ -342,7 +384,13 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 // context: interrupt
 void cc2520_radio_fifop_occurred()
 {
-	cc2520_radio_beginRx();
+	// Only start receiving a packet if we are
+	// currently in the RX state.
+	if (cc2520_radio_lock_status() == CC2520_RADIO_STATE_RX)
+		cc2520_radio_beginRx();
+	else
+		DBG((KERN_INFO "[cc2520] - fifop occurred while not in rx.\n"));
+	// Else reset radio?
 	//queue_work(wq, &work);
 }
 
@@ -431,13 +479,16 @@ static void cc2520_radio_beginTx()
 static void cc2520_radio_continueTx(void *arg)
 {   
 	DBG((KERN_INFO "[cc2520] - tx spi write callback complete.\n"));
+	if (cc2520_radio_tx_unlock_spi()) {
+		cc2520_radio_completeTx();
+	}
 }
 
 static void cc2520_radio_completeTx()
 {
 	cc2520_radio_unlock();
 	DBG((KERN_INFO "[cc2520] - write op complete.\n"));
-	radio_top->tx_done(0);
+	radio_top->tx_done(0);		
 }
 
 //////////////////////////////
