@@ -46,7 +46,7 @@ static int radio_state;
 enum cc2520_radio_state_enum {
     CC2520_RADIO_STATE_IDLE,
     CC2520_RADIO_STATE_RX,
-    CC2520_RADIO_STATE_TX
+    CC2520_RADIO_STATE_TX,
 };
 
 static cc2520_status_t cc2520_radio_strobe(u8 cmd);
@@ -103,12 +103,16 @@ void cc2520_radio_idle_lock(int state)
 	spin_unlock(&radio_sl);
 }
 
-void cc2520_radio_tx_unlock()
+int cc2520_radio_tx_unlock()
 {
 	spin_lock(&radio_sl);
-	if (radio_state == CC2520_RADIO_STATE_TX) 
+	if (radio_state == CC2520_RADIO_STATE_TX) {
 		radio_state = CC2520_RADIO_STATE_IDLE;
+		spin_unlock(&radio_sl);
+		return 1;
+	}
 	spin_unlock(&radio_sl);
+	return 0;
 }
 
 //////////////////////////////
@@ -303,13 +307,15 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 	// Store the SFD time for use later in timestamping
 	// incoming/outgoing packets.
 	sfd_nanos_ts = nano_timestamp;
-	if (is_high == 1)
+	if (is_high)
 		// Lock in a transmit if idle
 		cc2520_radio_idle_lock(CC2520_RADIO_STATE_RX);
 	else {
 		// SFD falling indicates TX completion.
-		cc2520_radio_tx_unlock();
-		cc2520_radio_completeTx();		
+		if (cc2520_radio_tx_unlock()) {
+			cc2520_radio_completeTx();				
+		}
+	
 	}
 }
 
