@@ -28,7 +28,7 @@ int main(char ** argv, int argc)
 	printf("Setting tx power\n");
 	struct cc2520_set_txpower_data txpower_data;
 	txpower_data.txpower = CC2520_TXPOWER_0DBM;
-	ioctl(file_desc, CC2520_IO_RADIO_SET_TXPOWER);
+	ioctl(file_desc, CC2520_IO_RADIO_SET_TXPOWER, &txpower_data);
 
 	printf("Turning on the radio...\n");
 	ioctl(file_desc, CC2520_IO_RADIO_INIT, NULL);
@@ -46,6 +46,9 @@ int main(char ** argv, int argc)
 		printf("result %d\n", result);
 		usleep(250 * 1000);
 	}
+
+	printf("Turning off the radio...\n");
+	ioctl(file_desc, CC2520_IO_RADIO_OFF, NULL);
 
 	close(file_desc);
 }

@@ -151,7 +151,7 @@ static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id)
     nanos = timespec_to_ns(&ts);
     gpio_val = gpio_get_value(CC2520_SFD);
 
-    printk(KERN_INFO "[cc2520] - sfd interrupt occurred at %lld, %d\n", (long long int)nanos, gpio_val);        
+    DBG((KERN_INFO "[cc2520] - sfd interrupt occurred at %lld, %d\n", (long long int)nanos, gpio_val));        
 
 
     cc2520_radio_sfd_occurred(nanos, gpio_val);
@@ -161,7 +161,7 @@ static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id)
 static irqreturn_t cc2520_fifop_handler(int irq, void *dev_id) 
 {
     if (gpio_get_value(CC2520_FIFOP) == 1) {
-        printk(KERN_INFO "[cc2520] - fifop interrupt occurred\n");
+        DBG((KERN_INFO "[cc2520] - fifop interrupt occurred\n"));
         cc2520_radio_fifop_occurred();       
     }
     return IRQ_HANDLED;
@@ -249,7 +249,7 @@ int cc2520_plat_gpio_init()
     return err;
 
     fail:
-        printk(KERN_INFO "Failed to init GPIOs\n");
+        printk(KERN_ALERT "[cc2520] - failed to init GPIOs\n");
         cc2520_plat_gpio_free();
         return err;
 }

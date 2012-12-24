@@ -84,7 +84,7 @@ static ssize_t interface_write(
 		if (result)
 			return -ERESTARTSYS;
 	}
-	printk(KERN_INFO "[cc2520] - write lock obtained.\n");
+	DBG((KERN_INFO "[cc2520] - write lock obtained.\n"));
 
 	// Step 2: Copy the packet to the incoming buffer.
 	pkt_len = min(len, (size_t)127);
@@ -97,7 +97,6 @@ static ssize_t interface_write(
 	// Step 3: Launch off into sending this packet,
 	// wait for an asynchronous callback to occur in
 	// the form of a semaphore. 
-	printk(KERN_INFO "[cc2520] - performing software ack test %d.\n", pkt_len);
 	interface_bottom->tx(tx_buf_c, pkt_len);
 	result = down_interruptible(&tx_done_sem);
 	if (result)
@@ -105,7 +104,7 @@ static ssize_t interface_write(
 
 	// Step 4: Finally return and allow other callers to write
 	// packets. 
-	printk(KERN_INFO "[cc2520] - returned from sack cb.\n");
+	DBG((KERN_INFO "[cc2520] - wrote %d bytes.\n", pkt_len));
 	up(&tx_sem);
 
 	return tx_result ? tx_result : pkt_len;

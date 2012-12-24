@@ -60,14 +60,14 @@ int init_module()
     int err = 0;
 
     setupBindings();
-    
+
     memset(&state, 0, sizeof(struct cc2520_state));
     
     printk(KERN_INFO "loading CC2520 Kernel Module v0.01...\n");
 
     err = cc2520_plat_gpio_init();
     if (err) {
-        printk(KERN_INFO "[CC2520] - gpio driver error. aborting.\n");
+        printk(KERN_ALERT "[CC2520] - gpio driver error. aborting.\n");
         return 1;
     }
 

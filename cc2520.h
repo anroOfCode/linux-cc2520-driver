@@ -6,6 +6,12 @@
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
 
+// Used to prevent timing-critical
+// operations from being interfered with
+// by the printk function.
+//#define DBG(x) printk x
+#define DBG(x) do {} while (0)
+
 //////////////////////////////
 // Configuration for driver
 /////////////////////////////
