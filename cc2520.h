@@ -98,7 +98,7 @@ struct cc2520_state {
     
     // CURRENTLY UNUSED:
 	struct work_struct work;    /* for deferred work */
-	struct workqueue_struct *wq;
+    struct workqueue_struct *wq;
 };
 
 extern struct cc2520_state state;

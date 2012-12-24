@@ -6,6 +6,7 @@
 #include <linux/types.h>
 #include <linux/semaphore.h>
 #include <linux/slab.h>
+#include <linux/sched.h>
 
 #include "ioctl.h"
 #include "cc2520.h"
@@ -18,6 +19,7 @@ static unsigned int major;
 static u8 *tx_buf_c;
 static u8 *rx_buf_c;
 static size_t tx_pkt_len;
+static size_t rx_pkt_len;
 
 // Allows for only a single rx or tx
 // to occur simultaneously. 
@@ -33,6 +35,8 @@ static struct semaphore rx_done_sem;
 // Results, stored by the callbacks
 static int tx_result;
 static int rx_result;
+
+DECLARE_WAIT_QUEUE_HEAD(cc2520_interface_read_queue);
 
 static void cc2520_interface_tx_done(u8 status);
 static void cc2520_interface_rx_done(u8 *buf, u8 len);
@@ -56,7 +60,9 @@ void cc2520_interface_tx_done(u8 status)
 
 void cc2520_interface_rx_done(u8 *buf, u8 len)
 {
-
+	rx_pkt_len = (size_t)len;
+	memcpy(rx_buf_c, buf, len);
+	wake_up(&cc2520_interface_read_queue);
 }
 
 ////////////////////
@@ -70,7 +76,7 @@ static ssize_t interface_write(
 	int result;
 	size_t pkt_len;
 
-	printk(KERN_INFO "[cc2520] - beginning write\n");
+	DBG((KERN_INFO "[cc2520] - beginning write\n"));
 
 	// Step 1: Get an exclusive lock on writing to the
 	// radio.
@@ -114,11 +120,14 @@ static ssize_t interface_write(
 		return -EFAULT;
 }
 
-static ssize_t interface_read(struct file *filp, char __user *buff, size_t count,
+static ssize_t interface_read(struct file *filp, char __user *buf, size_t count,
 			loff_t *offp)
 {
+	interruptible_sleep_on(&cc2520_interface_read_queue);
+	if (copy_to_user(buf, rx_buf_c, rx_pkt_len))
+		return -EFAULT;
 
-	return 0;
+	return rx_pkt_len;
 }
 
 static long interface_ioctl(struct file *file,
