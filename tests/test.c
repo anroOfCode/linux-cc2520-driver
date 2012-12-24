@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include "ioctl.h"
+#include <unistd.h>
 
 int main(char ** argv, int argc)
 {
@@ -33,12 +34,18 @@ int main(char ** argv, int argc)
 	ioctl(file_desc, CC2520_IO_RADIO_INIT, NULL);
 	ioctl(file_desc, CC2520_IO_RADIO_ON, NULL);
 
-	printf("Sending a test message...\n");
+	int i = 0;
 
-	// 8 Byte Header, 6 Byte Payload.
-	char test_msg[] = {0x41, 0x88, 0xF1, 0x22, 0x00, 0xFF, 0xFF, 0x01, 0x00, 0x3F, 0x06, 0x00, 0x01, 0x72, 0xF2};
-	result = write(file_desc, test_msg, 15);
+	for (i = 0; i < 100; i++) {
+		printf("Sending a test message...\n");
 
-	printf("result %d\n", result);
+		// 8 Byte Header, 6 Byte Payload.
+		char test_msg[] = {0x41, 0x88, (char) i, 0x22, 0x00, 0xFF, 0xFF, 0x01, 0x00, 0x3F, 0x06, 0x00, 0x01, 0x72, (char) i};
+		result = write(file_desc, test_msg, 15);
+
+		printf("result %d\n", result);
+		usleep(250 * 1000);
+	}
+
 	close(file_desc);
 }
