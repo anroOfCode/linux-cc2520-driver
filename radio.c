@@ -25,6 +25,9 @@ static u8 channel;
 
 static struct spi_message msg;
 static struct spi_transfer tsfer;
+static struct spi_transfer tsfer1;
+static struct spi_transfer tsfer2;
+static struct spi_transfer tsfer3;
 
 static u8 *tx_buf;
 static u8 *rx_buf;
@@ -40,6 +43,12 @@ static u64 sfd_nanos_ts;
 static spinlock_t radio_sl;
 static int radio_state;
 
+enum cc2520_radio_state_enum {
+    CC2520_RADIO_STATE_IDLE,
+    CC2520_RADIO_STATE_RX,
+    CC2520_RADIO_STATE_TX
+};
+
 static cc2520_status_t cc2520_radio_strobe(u8 cmd);
 static void cc2520_radio_writeRegister(u8 reg, u8 value);
 static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len);
@@ -49,8 +58,58 @@ static void cc2520_radio_continueRxRead(void *arg);
 static void cc2520_radio_finishRxRead(void *arg);
 
 static int cc2520_radio_tx(u8 *buf, u8 len);
+static void cc2520_radio_continueTx(void *arg);
+static void cc2520_radio_completeTx(void);
+
 
 struct cc2520_interface *radio_top;
+
+void cc2520_radio_lock(int state)
+{
+	spin_lock(&radio_sl);
+	while (radio_state != CC2520_RADIO_STATE_IDLE) {
+		spin_unlock(&radio_sl);
+		spin_lock(&radio_sl);
+	}
+	radio_state = state;
+	spin_unlock(&radio_sl);
+}
+
+int cc2520_radio_try_lock(int state)
+{
+	spin_lock(&radio_sl);
+	if (radio_state != CC2520_RADIO_STATE_IDLE) {
+		spin_unlock(&radio_sl);
+		return -1;
+	}
+	radio_state = state;
+	spin_unlock(&radio_sl);
+	return 0;
+}
+
+void cc2520_radio_unlock()
+{
+	spin_lock(&radio_sl);
+	radio_state = CC2520_RADIO_STATE_IDLE;
+	spin_unlock(&radio_sl);
+}
+
+void cc2520_radio_idle_lock(int state)
+{
+	spin_lock(&radio_sl);
+	if (radio_state == CC2520_RADIO_STATE_IDLE) {
+		radio_state = state;
+	}
+	spin_unlock(&radio_sl);
+}
+
+void cc2520_radio_tx_unlock()
+{
+	spin_lock(&radio_sl);
+	if (radio_state == CC2520_RADIO_STATE_TX) 
+		radio_state = CC2520_RADIO_STATE_IDLE;
+	spin_unlock(&radio_sl);
+}
 
 //////////////////////////////
 // Initialization & On/Off
@@ -58,9 +117,9 @@ struct cc2520_interface *radio_top;
 
 int cc2520_radio_init()
 {
-	radio_top->tx = cc2520_radio_tx;
-
 	int result;
+
+	radio_top->tx = cc2520_radio_tx;
 
 	short_addr = CC2520_DEF_SHORT_ADDR;
 	extended_addr = CC2520_DEF_EXT_ADDR;
@@ -239,11 +298,19 @@ void cc2520_radio_set_txpower(u8 power)
 /////////////////////////////
 
 // context: interrupt
-void cc2520_radio_sfd_occurred(u64 nano_timestamp)
+void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 {
 	// Store the SFD time for use later in timestamping
 	// incoming/outgoing packets.
 	sfd_nanos_ts = nano_timestamp;
+	if (is_high == 1)
+		// Lock in a transmit if idle
+		cc2520_radio_idle_lock(CC2520_RADIO_STATE_RX);
+	else {
+		// SFD falling indicates TX completion.
+		cc2520_radio_tx_unlock();
+		cc2520_radio_completeTx();		
+	}
 }
 
 // context: interrupt
@@ -265,11 +332,79 @@ void cc2520_radio_reset(void)
 // context: process?
 static int cc2520_radio_tx(u8 *buf, u8 len)
 {
+	printk(KERN_INFO "[cc2520] - beginning write op.\n");
 	// capture exclusive radio rights to send
 	// build the transmit command seq
-	// write that packet! 
+	// write that packet!
+
+	// 1- Stop Receiving
+	// 2- Write Packet Header
+	// 3- Turn on TX
+	// 4- Write Rest of Packet
+	// 5- On SFD falling edge give up lock
+
+	int status;
+	int buf_offset;
+	int i;
+
+	buf_offset = 0;
+	cc2520_radio_lock(CC2520_RADIO_STATE_TX);
+
+	// Turn off the radio
+	tsfer.len = 0;
+	tx_buf[buf_offset + tsfer.len++] = CC2520_CMD_SRFOFF;
+	buf_offset += tsfer.len;
+	tsfer.cs_change = 1;
+
+	tsfer1.tx_buf = tx_buf + buf_offset;
+	tsfer1.rx_buf = rx_buf + buf_offset;
+	tsfer1.len = 0;
+	tsfer1.cs_change = 1;
+	tx_buf[buf_offset + tsfer1.len++] = CC2520_CMD_TXBUF;
+	// Data + 2 bytes for FCS
+	tx_buf[buf_offset + tsfer1.len++] = len + 2;
+	for (i = 0; i < 8; i++)
+		tx_buf[buf_offset + tsfer1.len++] = buf[i];
+	buf_offset += tsfer1.len;
+
+	tsfer2.tx_buf = tx_buf + buf_offset;
+	tsfer2.rx_buf = rx_buf + buf_offset; 
+	tsfer2.len = 0;
+	tsfer2.cs_change = 1;
+	tx_buf[buf_offset + tsfer2.len++] = CC2520_CMD_STXON;
+	buf_offset += tsfer2.len;
+
+	tsfer3.tx_buf = tx_buf + buf_offset;
+	tsfer3.rx_buf = rx_buf + buf_offset;
+	tsfer3.len = 0;
+	tsfer3.cs_change = 1;
+	tx_buf[buf_offset + tsfer3.len++] = CC2520_CMD_TXBUF;
+	for (i = 8; i < len; i++)
+		tx_buf[buf_offset + tsfer3.len++] = buf[i];
+
+	spi_message_init(&msg);
+	msg.complete = cc2520_radio_continueTx;
+	msg.context = NULL;
+	spi_message_add_tail(&tsfer, &msg);
+	spi_message_add_tail(&tsfer1, &msg);
+	spi_message_add_tail(&tsfer2, &msg);
+	spi_message_add_tail(&tsfer3, &msg);
+
+	status = spi_async(state.spi_device, &msg); 
+
 	radio_top->tx_done(0);
 	return 0;
+}
+
+static void cc2520_radio_continueTx(void *arg)
+{   
+	printk(KERN_INFO "Spi Callback complete.\n");
+}
+
+static void cc2520_radio_completeTx()
+{
+	printk(KERN_INFO "[cc2520] - write op complete.\n");
+	radio_top->tx_done(0);
 }
 
 //////////////////////////////
@@ -333,7 +468,7 @@ static void cc2520_radio_finishRxRead(void *arg)
 
 	printk(KERN_INFO "[cc2520] - Read %d bytes from radio.", len);
 
-
+	cc2520_radio_unlock();
 	// At this point we should schedule the system to move the
 	// RX into a different buffer. For now just print it. 
 	buff = kmalloc(len*5 + 1, GFP_ATOMIC);

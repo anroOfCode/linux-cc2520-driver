@@ -140,6 +140,7 @@ void cc2520_plat_spi_free()
 
 static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id) 
 {
+    int gpio_val;
     struct timespec ts;
     s64 nanos;
 
@@ -148,12 +149,13 @@ static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id)
     // for a few uS of delay, but it's likely not needed.
     getrawmonotonic(&ts);
     nanos = timespec_to_ns(&ts);
+    gpio_val = gpio_get_value(CC2520_SFD);
 
-    if (gpio_get_value(CC2520_SFD) == 1) {
+    if (gpio_val == 1) {
         printk(KERN_INFO "[cc2520] - sfd interrupt occurred at %lld\n", (long long int)nanos);        
     }
 
-    cc2520_radio_sfd_occurred(nanos);
+    cc2520_radio_sfd_occurred(nanos, gpio_val);
     return IRQ_HANDLED;
 }
 

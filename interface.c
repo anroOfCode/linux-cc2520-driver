@@ -37,6 +37,14 @@ static int rx_result;
 static void cc2520_interface_tx_done(u8 status);
 static void cc2520_interface_rx_done(u8 *buf, u8 len);
 
+static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data);
+static void interface_ioctl_set_address(struct cc2520_set_address_data *data);
+static void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data);
+
+static long interface_ioctl(struct file *file,
+		 unsigned int ioctl_num,
+		 unsigned long ioctl_param);
+
 ///////////////////////
 // Interface callbacks
 ///////////////////////
@@ -114,6 +122,49 @@ static ssize_t interface_read(struct file *filp, char __user *buff, size_t count
 	return 0;
 }
 
+static long interface_ioctl(struct file *file,
+		 unsigned int ioctl_num,
+		 unsigned long ioctl_param)
+{
+	switch (ioctl_num) {
+		case CC2520_IO_RADIO_INIT:
+			printk(KERN_INFO "[cc2520] - radio starting\n");
+			cc2520_radio_start();
+			break;
+		case CC2520_IO_RADIO_ON:
+			printk(KERN_INFO "[cc2520] - radio turning on\n");
+			cc2520_radio_on();
+			break;
+		case CC2520_IO_RADIO_OFF:
+			printk(KERN_INFO "[cc2520] - radio turning off\n");
+			cc2520_radio_off();
+			break;
+		case CC2520_IO_RADIO_SET_CHANNEL:
+			interface_ioctl_set_channel((struct cc2520_set_channel_data *) ioctl_param);
+			break;
+		case CC2520_IO_RADIO_SET_ADDRESS:
+			interface_ioctl_set_address((struct cc2520_set_address_data *) ioctl_param);
+			break;
+		case CC2520_IO_RADIO_SET_TXPOWER:
+			interface_ioctl_set_txpower((struct cc2520_set_txpower_data *) ioctl_param);
+			break;
+	}
+
+	return 0;
+}
+
+struct file_operations fops = {
+	.read = interface_read,
+	.write = interface_write,
+	.unlocked_ioctl = interface_ioctl,
+	.open = NULL,
+	.release = NULL
+};
+
+/////////////////
+// IOCTL Handlers
+///////////////////
+
 static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data)
 {
 	int result;
@@ -161,44 +212,9 @@ static void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data)
 	cc2520_radio_set_txpower(ldata.txpower);
 }
 
-long interface_ioctl(struct file *file,
-		 unsigned int ioctl_num,
-		 unsigned long ioctl_param)
-{
-	switch (ioctl_num) {
-		case CC2520_IO_RADIO_INIT:
-			printk(KERN_INFO "[cc2520] - radio starting\n");
-			cc2520_radio_start();
-			break;
-		case CC2520_IO_RADIO_ON:
-			printk(KERN_INFO "[cc2520] - radio turning on\n");
-			cc2520_radio_on();
-			break;
-		case CC2520_IO_RADIO_OFF:
-			printk(KERN_INFO "[cc2520] - radio turning off\n");
-			cc2520_radio_off();
-			break;
-		case CC2520_IO_RADIO_SET_CHANNEL:
-			interface_ioctl_set_channel((struct cc2520_set_channel_data *) ioctl_param);
-			break;
-		case CC2520_IO_RADIO_SET_ADDRESS:
-			interface_ioctl_set_address((struct cc2520_set_address_data *) ioctl_param);
-			break;
-		case CC2520_IO_RADIO_SET_TXPOWER:
-			interface_ioctl_set_txpower((struct cc2520_set_txpower_data *) ioctl_param);
-			break;
-	}
-
-	return 0;
-}
-
-struct file_operations fops = {
-	.read = interface_read,
-	.write = interface_write,
-	.unlocked_ioctl = interface_ioctl,
-	.open = NULL,
-	.release = NULL
-};
+/////////////////
+// init/free 
+///////////////////
 
 int cc2520_interface_init()
 {

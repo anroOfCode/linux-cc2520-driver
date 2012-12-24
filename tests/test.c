@@ -6,6 +6,7 @@
 
 int main(char ** argv, int argc)
 {
+
 	int result = 0;
 	printf("Testing cc2520 driver...\n");
 	int file_desc;
@@ -27,14 +28,16 @@ int main(char ** argv, int argc)
 	struct cc2520_set_txpower_data txpower_data;
 	txpower_data.txpower = CC2520_TXPOWER_0DBM;
 	ioctl(file_desc, CC2520_IO_RADIO_SET_TXPOWER);
-	
+
 	printf("Turning on the radio...\n");
 	ioctl(file_desc, CC2520_IO_RADIO_INIT, NULL);
 	ioctl(file_desc, CC2520_IO_RADIO_ON, NULL);
 
 	printf("Sending a test message...\n");
-	char test_msg[] = {0xAA, 0xBB, 0xCC, 0xDD};;
-	result = write(file_desc, test_msg, 4);
+
+	// 8 Byte Header, 6 Byte Payload.
+	char test_msg[] = {0x41, 0x88, 0xF1, 0x22, 0xFF, 0xFF, 0x01, 0x00, 0x3F, 0x06, 0x00, 0x01, 0x72, 0xF2};
+	result = write(file_desc, test_msg, 14);
 
 	printf("result %d\n", result);
 	close(file_desc);

@@ -121,7 +121,7 @@ Receive Process
 
 ----------------------------------
 
-TxLock:
+TxLock: Process Context 
 ------------------
 lock()
 while (state != IDLE) {
@@ -132,7 +132,7 @@ state = TX;
 unlock()
 
 
-TxRelease:
+TxRelease: 
 ------------------
 lock()
 state = IDLE;
@@ -153,6 +153,38 @@ RxRelease:
 lock()
 state = IDLE
 unlock()
+
+
+----------------------------------
+
+Send/Receive Interface
+
+tx(u8 *buf, u8 len, void *cb(void))
+attach_txdone
+
+
+attach_rx(void *cb(void))
+
+attach_sub_tx(void tx*(u8 *buf, u8 len))
+
+
+rx(u8 *buf, u8 len)
+
+struct layer_iface {
+	task tx
+	event tx_done
+	event rx
+}
+
+call_event(layer_iface * iface, enum func)
+call_task(layer_iface * iface, enum func)
+
+
+
+
+
+
+
 
 
 

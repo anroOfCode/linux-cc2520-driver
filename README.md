@@ -19,3 +19,10 @@ Please note that we're cross-compiling from an x86 machine.
 Some notes
 ----------
   * You'll need to load the spi-bcm2708 driver for this module to work. You can do this with modprobe spi-bcm2708.
+  * I made a small patch to the spi-bcm2708 driver. It previously didn't allow leaving the CS line high after a spi_message completed:
+  	spi-bcm2709.c:315:
+	if (xfer->cs_change) {
+	//if (list_is_last(&xfer->transfer_list, &msg->transfers) ||
+	//		xfer->cs_change) {
+  * Make sure to update the directory for the kernel in the Makefile
+  * Update the GPIO defs in cc2520.h
