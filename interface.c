@@ -181,7 +181,7 @@ static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data)
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_channel_data));
 
 	if (result) {
-		printk(KERN_ALERT "[cc2520] - an error occurred setting the channel");
+		printk(KERN_ALERT "[cc2520] - an error occurred setting the channel\n");
 		return;
 	}
 
@@ -196,11 +196,11 @@ static void interface_ioctl_set_address(struct cc2520_set_address_data *data)
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_address_data));
 
 	if (result) {
-		printk(KERN_ALERT "[cc2520] - an error occurred setting the address");
+		printk(KERN_ALERT "[cc2520] - an error occurred setting the address\n");
 		return;
 	}
 
-	printk(KERN_INFO "[cc2520] - setting addr: %d ext_addr: %lld pan_id: %d",
+	printk(KERN_INFO "[cc2520] - setting addr: %d ext_addr: %lld pan_id: %d\n",
 		ldata.short_addr, ldata.extended_addr, ldata.pan_id);
 	cc2520_radio_set_address(ldata.short_addr, ldata.extended_addr, ldata.pan_id);
 }
@@ -212,11 +212,11 @@ static void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data)
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_txpower_data));
 
 	if (result) {
-		printk(KERN_ALERT "[cc2520] - an error occurred setting the txpower");
+		printk(KERN_ALERT "[cc2520] - an error occurred setting the txpower\n");
 		return;
 	}
 
-	printk(KERN_INFO "[cc2520] - setting txpower: %d", ldata.txpower);
+	printk(KERN_INFO "[cc2520] - setting txpower: %d\n", ldata.txpower);
 	cc2520_radio_set_txpower(ldata.txpower);
 }
 

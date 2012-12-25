@@ -437,15 +437,11 @@ static void cc2520_radio_beginTx()
 
 	buf_offset = 0;
 
-	tsfer.len = 0;
-	tx_buf[buf_offset + tsfer.len++] = CC2520_CMD_SRFOFF;
-	buf_offset += tsfer.len;
-	tsfer.cs_change = 1;
-
 	tsfer1.tx_buf = tx_buf + buf_offset;
 	tsfer1.rx_buf = rx_buf + buf_offset;
 	tsfer1.len = 0;
 	tsfer1.cs_change = 1;
+	tx_buf[buf_offset + tsfer1.len++] = CC2520_CMD_SRFOFF;
 	tx_buf[buf_offset + tsfer1.len++] = CC2520_CMD_TXBUF;
 	// Data + 2 bytes for FCS
 	tx_buf[buf_offset + tsfer1.len++] = tx_buf_r_len + 2;
@@ -471,7 +467,7 @@ static void cc2520_radio_beginTx()
 	spi_message_init(&msg);
 	msg.complete = cc2520_radio_continueTx;
 	msg.context = NULL;
-	spi_message_add_tail(&tsfer, &msg);
+	//spi_message_add_tail(&tsfer, &msg);
 	spi_message_add_tail(&tsfer1, &msg);
 	spi_message_add_tail(&tsfer2, &msg);
 	spi_message_add_tail(&tsfer3, &msg);
@@ -506,7 +502,7 @@ static void cc2520_radio_beginRx()
 	tx_buf[tsfer.len++] = CC2520_CMD_RXBUF;
 	tx_buf[tsfer.len++] = 0;
 
-	tsfer.cs_change = 0;
+	tsfer.cs_change = 1;
 
 	memset(rx_buf, 0, SPI_BUFF_SIZE);
 
@@ -530,6 +526,7 @@ static void cc2520_radio_continueRx(void *arg)
 	len = rx_buf[1];
 
 	tsfer.len = 0;
+	tx_buf[tsfer.len++] = CC2520_CMD_RXBUF;
 	for (i = 0; i < len; i++) 
 		tx_buf[tsfer.len++] = 0;
 
@@ -551,7 +548,7 @@ static void cc2520_radio_finishRx(void *arg)
 	len = (int)arg;
 
 	spin_lock(&rx_buf_sl);
-	memcpy(rx_buf_r, rx_buf, len);
+	memcpy(rx_buf_r, rx_buf + 1, len);
 	cc2520_radio_unlock();
 	radio_top->rx_done(rx_buf_r, len);
 	spin_unlock(&rx_buf_sl);

@@ -179,11 +179,13 @@ struct layer_iface {
 call_event(layer_iface * iface, enum func)
 call_task(layer_iface * iface, enum func)
 
+----------------------------------
 
+Low Power Listening & Software Acknowledgements
 
-
-
-
+LPL Sleep Listening Period = 512
+Blip L2 Retries: 5
+Blip L2 Delay: 103
 
 
 
