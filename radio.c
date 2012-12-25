@@ -45,6 +45,7 @@ static int radio_state;
 
 enum cc2520_radio_state_enum {
     CC2520_RADIO_STATE_IDLE,
+    CC2520_RADIO_STATE_RX_SFD_DONE,
     CC2520_RADIO_STATE_RX,
     CC2520_RADIO_STATE_TX,
     CC2520_RADIO_STATE_TX_SFD_DONE,
@@ -146,14 +147,16 @@ int cc2520_radio_tx_unlock_sfd(void)
 	return 0;
 }
 
-void cc2520_radio_rx_lock(void)
+int cc2520_radio_rx_lock(void)
 {
 	spin_lock(&radio_sl);
-	if (radio_state == CC2520_RADIO_STATE_IDLE ||
-			radio_state == CC2520_RADIO_STATE_RX) {
+	if (radio_state == CC2520_RADIO_STATE_RX_SFD_DONE) {
 		radio_state = CC2520_RADIO_STATE_RX;
+		spin_unlock(&radio_sl);
+		return 1;
 	}
 	spin_unlock(&radio_sl);
+	return 0;
 }
 
 int cc2520_radio_lock_status(void)
@@ -366,7 +369,7 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 	sfd_nanos_ts = nano_timestamp;
 
 	if (is_high) {
-		if (cc2520_radio_idle_lock(CC2520_RADIO_STATE_RX)) {
+		if (cc2520_radio_idle_lock(CC2520_RADIO_STATE_RX_SFD_DONE)) {
 			DBG((KERN_INFO "[cc2520] - beginning read op.\n"));
 		}
 		// Lock in a receive if idle
@@ -386,7 +389,7 @@ void cc2520_radio_fifop_occurred()
 {
 	// Only start receiving a packet if we are
 	// currently in the RX state.
-	if (cc2520_radio_lock_status() == CC2520_RADIO_STATE_RX)
+	if (cc2520_radio_rx_lock())
 		cc2520_radio_beginRx();
 	else
 		DBG((KERN_INFO "[cc2520] - fifop occurred while not in rx.\n"));
