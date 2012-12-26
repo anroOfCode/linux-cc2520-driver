@@ -553,23 +553,7 @@ static void cc2520_radio_finishRx(void *arg)
 	radio_top->rx_done(rx_buf_r, len);
 	spin_unlock(&rx_buf_sl);
 
-	DBG((KERN_INFO "[cc2520] - Read %d bytes from radio.", len));
-
-	// At this point we should schedule the system to move the
-	// RX into a different buffer. For now just print it. 
-	/*
-	buff = kmalloc(len*5 + 1, GFP_ATOMIC);
-	if (buff) {
-		buff_ptr = buff;
-		for (i = 0; i < len; i++)
-		{
-			buff_ptr += sprintf(buff_ptr, " 0x%02X", rx_buf[i]);
-		}
-		*(buff_ptr) = '\0';
-		printk(KERN_INFO "[cc2520] - %s\n", buff);
-		kfree(buff);
-	}  
-	*/
+	DBG((KERN_INFO "[cc2520] - Read %d bytes from radio.\n", len));
 }
 
 //////////////////////////////
