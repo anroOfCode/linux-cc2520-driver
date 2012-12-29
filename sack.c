@@ -1,6 +1,8 @@
 #include <linux/types.h>
+#include <linux/slab.h>
 #include "sack.h"
 #include "cc2520.h"
+#include "packet.h"
 
 struct cc2520_interface *sack_top;
 struct cc2520_interface *sack_bottom;
@@ -24,6 +26,15 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len);
 //     - Concurrency mechanism to prevent transmission
 //       during ACKing.
 
+static u8 *ack_buf;
+static u8 *curr_tx_buf;
+
+enum cc2520_sack_state_enum {
+	CC2520_SACK_IDLE,
+	CC2520_SACK_TX
+};
+
+static int sack_state;
 
 
 int cc2520_sack_init()
@@ -32,16 +43,26 @@ int cc2520_sack_init()
 	sack_bottom->tx_done = cc2520_sack_tx_done;
 	sack_bottom->rx_done = cc2520_sack_rx_done;
 
+	curr_tx_buf = NULL;
+
+	ack_buf = kmalloc(IEEE154_ACK_FRAME_LENGTH + 1, GFP_KERNEL);
+	if (!ack_buf) {
+		return -EFAULT;
+	}
+
 	return 0;
 }
 
 void cc2520_sack_free()
 {
-
+	if (ack_buf) {
+		kfree(ack_buf);
+	}
 }
 
 static int cc2520_sack_tx(u8 * buf, u8 len)
 {
+	curr_tx_buf = buf;
 	// If previous packet pending, wait on it to
 	// complete or timeout.
 

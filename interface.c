@@ -93,7 +93,7 @@ static ssize_t interface_write(
 	DBG((KERN_INFO "[cc2520] - write lock obtained.\n"));
 
 	// Step 2: Copy the packet to the incoming buffer.
-	pkt_len = min(len, (size_t)127);
+	pkt_len = min(len, (size_t)128);
 	if (copy_from_user(tx_buf_c, in_buf, pkt_len)) {
 		result = -EFAULT;
 		goto error;
