@@ -443,9 +443,9 @@ static void cc2520_radio_beginTx()
 	tsfer1.cs_change = 1;
 	tx_buf[buf_offset + tsfer1.len++] = CC2520_CMD_SRFOFF;
 	tx_buf[buf_offset + tsfer1.len++] = CC2520_CMD_TXBUF;
-	// Data + 2 bytes for FCS
+	// 2 bytes for FCS
 	tx_buf[buf_offset + tsfer1.len++] = tx_buf_r_len + 2;
-	for (i = 0; i < 8; i++)
+	for (i = 0; i < 2; i++)
 		tx_buf[buf_offset + tsfer1.len++] = tx_buf_r[i];
 	buf_offset += tsfer1.len;
 
@@ -456,21 +456,30 @@ static void cc2520_radio_beginTx()
 	tx_buf[buf_offset + tsfer2.len++] = CC2520_CMD_STXON;
 	buf_offset += tsfer2.len;
 
-	tsfer3.tx_buf = tx_buf + buf_offset;
-	tsfer3.rx_buf = rx_buf + buf_offset;
-	tsfer3.len = 0;
-	tsfer3.cs_change = 1;
-	tx_buf[buf_offset + tsfer3.len++] = CC2520_CMD_TXBUF;
-	for (i = 8; i < tx_buf_r_len; i++)
-		tx_buf[buf_offset + tsfer3.len++] = tx_buf_r[i];
+	// We're keeping these two SPI transactions separated
+	// in case we later want to encode timestamp
+	// information in the packet itself after seeing SFD
+	// flag. 
+	if (tx_buf_r_len > 2) {
+		tsfer3.tx_buf = tx_buf + buf_offset;
+		tsfer3.rx_buf = rx_buf + buf_offset;
+		tsfer3.len = 0;
+		tsfer3.cs_change = 1;
+		tx_buf[buf_offset + tsfer3.len++] = CC2520_CMD_TXBUF;
+		for (i = 2; i < tx_buf_r_len; i++)
+			tx_buf[buf_offset + tsfer3.len++] = tx_buf_r[i];		
+	}
+
 
 	spi_message_init(&msg);
 	msg.complete = cc2520_radio_continueTx;
 	msg.context = NULL;
-	//spi_message_add_tail(&tsfer, &msg);
+
 	spi_message_add_tail(&tsfer1, &msg);
 	spi_message_add_tail(&tsfer2, &msg);
-	spi_message_add_tail(&tsfer3, &msg);
+
+	if (tx_buf_r_len > 2)
+		spi_message_add_tail(&tsfer3, &msg);
 
 	status = spi_async(state.spi_device, &msg); 
 }
