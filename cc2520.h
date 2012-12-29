@@ -80,8 +80,21 @@
 /////////////////////////////
 
 struct cc2520_interface {
+    // ALWAYS the length of the packet,
+    // including the length byte itself,
+    // excluding the automatically generated
+    // FCS bytes. 
+    // The packet should start with a valid
+    // 802.15.4 length. 
     int (*tx)(u8 *buf, u8 len);
     void (*tx_done)(u8 status);
+
+    // ALWAYS the length of the packet,
+    // including the length byte itself,
+    // and including the automatically
+    // generated FCS bytes. The packet should
+    // start with a valid 802.15.4 length and
+    // end with valid FCS bytes.
     void (*rx_done)(u8 *buf, u8 len);
 };
 
