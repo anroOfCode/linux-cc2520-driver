@@ -31,7 +31,8 @@ static u8 *curr_tx_buf;
 
 enum cc2520_sack_state_enum {
 	CC2520_SACK_IDLE,
-	CC2520_SACK_TX
+	CC2520_SACK_TX,
+	CC2520_SACK_TX_ACK
 };
 
 static int sack_state;
@@ -63,6 +64,7 @@ void cc2520_sack_free()
 static int cc2520_sack_tx(u8 * buf, u8 len)
 {
 	curr_tx_buf = buf;
+
 	// If previous packet pending, wait on it to
 	// complete or timeout.
 
@@ -74,7 +76,8 @@ static int cc2520_sack_tx(u8 * buf, u8 len)
 
 static void cc2520_sack_tx_done(u8 status)
 {
-	sack_top->tx_done(status);
+	if (sack_state == CC2520_SACK_TX)
+		sack_top->tx_done(status);
 
 	// If in the middle of a transmit that requires an
 	// ACK, retransmit, else call top send done.
@@ -82,6 +85,14 @@ static void cc2520_sack_tx_done(u8 status)
 
 static void cc2520_sack_rx_done(u8 *buf, u8 len)
 {
+	// if this packet we just received requires
+	// an ACK, trasmit it.
+	if (cc2520_packet_requires_ack_reply(buf)) {
+		cc2520_packet_create_ack(buf, ack_buf);
+		sack_state = CC2520_SACK_TX_ACK;
+		sack_bottom->tx(ack_buf, IEEE154_ACK_FRAME_LENGTH + 1);
+	}
+
 	sack_top->rx_done(buf, len);
 	// If in the middle of a transmit that requires
 	// an ack, examine to see if this is the ack we are

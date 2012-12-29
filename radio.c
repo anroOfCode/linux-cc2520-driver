@@ -563,8 +563,12 @@ static void cc2520_radio_finishRx(void *arg)
 	// with the TX interface. 
 	rx_buf_r[0] = len;
 
-	memcpy(rx_buf_r + 1, rx_buf, len);
+	// Make sure to ignore the command return byte.
+	memcpy(rx_buf_r + 1, rx_buf + 1, len);
 	cc2520_radio_unlock();
+
+	// Pass length of entire buffer to
+	// upper layers. 
 	radio_top->rx_done(rx_buf_r, len + 1);
 	spin_unlock(&rx_buf_sl);
 
