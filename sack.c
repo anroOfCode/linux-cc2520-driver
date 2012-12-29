@@ -64,6 +64,7 @@ void cc2520_sack_free()
 static int cc2520_sack_tx(u8 * buf, u8 len)
 {
 	curr_tx_buf = buf;
+	sack_state = CC2520_SACK_TX;
 
 	// If previous packet pending, wait on it to
 	// complete or timeout.
@@ -76,8 +77,11 @@ static int cc2520_sack_tx(u8 * buf, u8 len)
 
 static void cc2520_sack_tx_done(u8 status)
 {
-	if (sack_state == CC2520_SACK_TX)
+	if (sack_state == CC2520_SACK_TX) {
 		sack_top->tx_done(status);
+		sack_state = CC2520_SACK_IDLE;
+	}
+		
 
 	// If in the middle of a transmit that requires an
 	// ACK, retransmit, else call top send done.
