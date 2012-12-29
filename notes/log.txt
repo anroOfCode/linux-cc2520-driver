@@ -187,6 +187,24 @@ LPL Sleep Listening Period = 512
 Blip L2 Retries: 5
 Blip L2 Delay: 103
 
+============================================
+============================================
+Some thoughts on spin_locks vs. standard
+scheduler-based synchronization constructs
+
+TODO:
+Right now the inner layers of the radio driver are using spin-lock
+based synchronization. I did this because most of the radio's events
+are interrupt-driven, thus they preempt the main execution context,
+and because most spinlocks should be held for only a few hundred
+microseconds. It remains to be seen whether the kernel's scheduler
+could do a better job. A lot of times spinlocks are a really poor
+choice.
+
+TODO:
+Handle statuses and actually catch some common error conditions.
+
+
 
 
 

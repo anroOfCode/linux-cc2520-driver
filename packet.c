@@ -20,6 +20,27 @@ bool cc2520_packet_requires_ack_wait(u8 *buf)
 		(header->dest != IEEE154_BROADCAST_ADDR);
 }
 
+bool cc2520_packet_is_ack(u8* buf)
+{
+	ieee154_simple_header_t *header;
+	header = cc2520_packet_get_header(buf);
+
+	return (header->fcf & IEEE154_ACK_FRAME_MASK)
+		== IEEE154_ACK_FRAME_VALUE;
+}
+
+bool cc2520_packet_is_ack_to(u8 *pending, u8 *buf)
+{
+	ieee154_simple_header_t *header;
+	u8 dsn;
+
+	header = cc2520_packet_get_header(buf);
+	dsn = header->dsn;
+
+	header = cc2520_packet_get_header(pending);
+	return dsn == header->dsn;
+}
+
 void cc2520_packet_create_ack(u8 *pkt, u8 *buf)
 {
 	u8 *ptr;

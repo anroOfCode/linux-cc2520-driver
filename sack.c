@@ -1,5 +1,6 @@
 #include <linux/types.h>
 #include <linux/slab.h>
+#include <linux/spinlock.h>
 #include "sack.h"
 #include "cc2520.h"
 #include "packet.h"
@@ -27,16 +28,17 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len);
 //       during ACKing.
 
 static u8 *ack_buf;
-static u8 *curr_tx_buf;
+static u8 *cur_tx_buf;
 
 enum cc2520_sack_state_enum {
 	CC2520_SACK_IDLE,
-	CC2520_SACK_TX,
-	CC2520_SACK_TX_ACK
+	CC2520_SACK_TX, // Waiting for a tx to complete
+	CC2520_SACK_TX_WAIT, // Waiting for an ack
+	CC2520_SACK_TX_ACK, // Waiting for a sent ack to finish
 };
 
 static int sack_state;
-
+static spinlock_t sack_sl;
 
 int cc2520_sack_init()
 {
@@ -44,12 +46,15 @@ int cc2520_sack_init()
 	sack_bottom->tx_done = cc2520_sack_tx_done;
 	sack_bottom->rx_done = cc2520_sack_rx_done;
 
-	curr_tx_buf = NULL;
+	cur_tx_buf = NULL;
 
 	ack_buf = kmalloc(IEEE154_ACK_FRAME_LENGTH + 1, GFP_KERNEL);
 	if (!ack_buf) {
 		return -EFAULT;
 	}
+
+	spin_lock_init(&sack_sl);
+	sack_state = CC2520_SACK_IDLE;
 
 	return 0;
 }
@@ -63,45 +68,77 @@ void cc2520_sack_free()
 
 static int cc2520_sack_tx(u8 * buf, u8 len)
 {
-	curr_tx_buf = buf;
+	spin_lock(&sack_sl);
+	if (sack_state != CC2520_SACK_IDLE) {
+		printk(KERN_INFO "[cc2520] - Ut oh! Tx spinlocking.\n");
+	}
+	while (sack_state != CC2520_SACK_IDLE) {
+		spin_unlock(&sack_sl);
+		spin_lock(&sack_sl);
+	}
 	sack_state = CC2520_SACK_TX;
+	spin_unlock(&sack_sl);
 
-	// If previous packet pending, wait on it to
-	// complete or timeout.
-
-	// 1- Setup bookkeeping information on this
-	//    tx frame. If it requires a software ack,
-	//    then setup a timeout timer. 
+	cur_tx_buf = buf;
 	return sack_bottom->tx(buf, len);
 }
 
 static void cc2520_sack_tx_done(u8 status)
 {
+	spin_lock(&sack_sl);
 	if (sack_state == CC2520_SACK_TX) {
-		sack_top->tx_done(status);
-		sack_state = CC2520_SACK_IDLE;
+		if (cc2520_packet_requires_ack_wait(cur_tx_buf)) {
+			sack_state = CC2520_SACK_TX_WAIT;
+			spin_unlock(&sack_sl);
+		}
+		else {
+			// do we need to wait for an ACK
+			sack_state = CC2520_SACK_IDLE;
+			spin_unlock(&sack_sl);
+			sack_top->tx_done(status);
+		}
 	}
-		
-
-	// If in the middle of a transmit that requires an
-	// ACK, retransmit, else call top send done.
+	else if (sack_state == CC2520_SACK_TX_ACK) {
+		sack_state = CC2520_SACK_IDLE;
+		spin_unlock(&sack_sl);
+	}
+	else {
+		printk(KERN_ALERT "[cc2520] - ERROR: tx_done state engine in impossible state.\n");
+	}
 }
 
 static void cc2520_sack_rx_done(u8 *buf, u8 len)
 {
 	// if this packet we just received requires
 	// an ACK, trasmit it.
-	if (cc2520_packet_requires_ack_reply(buf)) {
-		cc2520_packet_create_ack(buf, ack_buf);
-		sack_state = CC2520_SACK_TX_ACK;
-		sack_bottom->tx(ack_buf, IEEE154_ACK_FRAME_LENGTH + 1);
-	}
+	spin_lock(&sack_sl);
 
-	sack_top->rx_done(buf, len);
-	// If in the middle of a transmit that requires
-	// an ack, examine to see if this is the ack we are
-	// looking for and let the upper layers know that tx is
-	// complete, else just pass the message along. 
+	// If IDLE this must be a new RX packet
+	if (cc2520_packet_is_ack(buf)) {
+		if (sack_state == CC2520_SACK_TX_WAIT && 
+			cc2520_packet_is_ack_to(buf, cur_tx_buf)) {
+			sack_state = CC2520_SACK_IDLE;
+			spin_unlock(&sack_sl);
+			sack_top->tx_done(0);
+		}
+	}
+	else {
+		if (sack_state != CC2520_SACK_IDLE) {
+			printk(KERN_ALERT "[cc2520] - ERROR: Softack state is incorrect!\n");
+		}
+
+		if (cc2520_packet_requires_ack_reply(buf)) {
+			cc2520_packet_create_ack(buf, ack_buf);
+			sack_state = CC2520_SACK_TX_ACK;
+			spin_unlock(&sack_sl);
+			sack_bottom->tx(ack_buf, IEEE154_ACK_FRAME_LENGTH + 1);
+			sack_top->rx_done(buf, len);
+		}
+		else {
+			spin_unlock(&sack_sl);
+			sack_top->rx_done(buf, len);
+		}
+	}
 }
 
 // States:

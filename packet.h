@@ -91,6 +91,8 @@ u8* cc2520_packet_get_payload(u8 * buf);
 bool cc2520_packet_requires_ack_reply(u8 *buf);
 bool cc2520_packet_requires_ack_wait(u8 *buf);
 void cc2520_packet_create_ack(u8 *pkt, u8 *buf);
+bool cc2520_packet_is_ack(u8* buf);
+bool cc2520_packet_is_ack_to(u8* pending, u8 * buf);
 
 
 #endif

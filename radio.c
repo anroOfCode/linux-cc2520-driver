@@ -365,19 +365,17 @@ void cc2520_radio_set_txpower(u8 power)
 void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 {
 	// Store the SFD time for use later in timestamping
-	// incoming/outgoing packets.
+	// incoming/outgoing packets. To be used later...
 	sfd_nanos_ts = nano_timestamp;
 
 	if (is_high) {
 		if (cc2520_radio_idle_lock(CC2520_RADIO_STATE_RX_SFD_DONE)) {
 			DBG((KERN_INFO "[cc2520] - beginning read op.\n"));
 		}
-		// Lock in a receive if idle
-		
-		// Start timeout timer. 
 	}
 	else {
-		// SFD falling indicates TX completion.
+		// SFD falling indicates TX completion
+		// if we're currently in TX mode, unlock.
 		if (cc2520_radio_tx_unlock_sfd()) {
 			cc2520_radio_completeTx();				
 		}
@@ -388,13 +386,12 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 void cc2520_radio_fifop_occurred()
 {
 	// Only start receiving a packet if we are
-	// currently in the RX state.
+	// currently in the Idle state and can lock to
+	// RX.
 	if (cc2520_radio_rx_lock())
 		cc2520_radio_beginRx();
 	else
-		DBG((KERN_INFO "[cc2520] - fifop occurred while not in rx.\n"));
-	// Else reset radio?
-	//queue_work(wq, &work);
+		DBG((KERN_ALERT "[cc2520] - ERROR: fifop occurred while not in rx.\n"));
 }
 
 void cc2520_radio_reset(void)
@@ -420,8 +417,9 @@ static int cc2520_radio_tx(u8 *buf, u8 len)
 	// 4- Write Rest of Packet
 	// 5- On SFD falling edge give up lock
 
-	// Beginning of TX critical section 
+	// Beginning of TX critical section
 	cc2520_radio_lock(CC2520_RADIO_STATE_TX);
+
 	memcpy(tx_buf_r, buf, len);
 	tx_buf_r_len = len;
 	// Turn off the radio
@@ -487,6 +485,10 @@ static void cc2520_radio_beginTx()
 static void cc2520_radio_continueTx(void *arg)
 {   
 	DBG((KERN_INFO "[cc2520] - tx spi write callback complete.\n"));
+
+	// To prevent race conditions between the SPI engine and the
+	// SFD interrupt we unlock in two stages. If this is the last
+	// thing to complete we signal TX complete. 
 	if (cc2520_radio_tx_unlock_spi()) {
 		cc2520_radio_completeTx();
 	}
@@ -556,6 +558,9 @@ static void cc2520_radio_finishRx(void *arg)
 
 	len = (int)arg;
 
+	// we keep a lock on the RX buffer separately
+	// to allow for another rx packet to pile up
+	// behind the current one. 
 	spin_lock(&rx_buf_sl);
 
 	// Note: we place the len at the beginning
