@@ -557,9 +557,15 @@ static void cc2520_radio_finishRx(void *arg)
 	len = (int)arg;
 
 	spin_lock(&rx_buf_sl);
-	memcpy(rx_buf_r, rx_buf + 1, len);
+
+	// Note: we place the len at the beginning
+	// of the packet to make the interface symmetric
+	// with the TX interface. 
+	rx_buf_r[0] = len;
+
+	memcpy(rx_buf_r + 1, rx_buf, len);
 	cc2520_radio_unlock();
-	radio_top->rx_done(rx_buf_r, len);
+	radio_top->rx_done(rx_buf_r, len + 1);
 	spin_unlock(&rx_buf_sl);
 
 	DBG((KERN_INFO "[cc2520] - Read %d bytes from radio.\n", len));
