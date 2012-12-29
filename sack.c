@@ -9,6 +9,23 @@ static int cc2520_sack_tx(u8 * buf, u8 len);
 static void cc2520_sack_tx_done(u8 status);
 static void cc2520_sack_rx_done(u8 *buf, u8 len);
 
+// Two pieces to software acknowledgements:
+// 1 - Taking packets we're transmitting, setting an ACK flag
+//     on them, and waiting for that ACK to be received before
+//     calling tx_done.
+//     Requires:
+//     - A timeout equivalent to the ACK period
+//     - Storing the DSN of the outgoing packet
+//     - Interface to verify if an ACK is correct
+// 2 - Examining packets we're receiving and sending an ACK if
+//     needed.
+//     Requires:
+//     - Buffer to build ACK packet
+//     - Concurrency mechanism to prevent transmission
+//       during ACKing.
+
+
+
 int cc2520_sack_init()
 {
 	sack_top->tx = cc2520_sack_tx;
