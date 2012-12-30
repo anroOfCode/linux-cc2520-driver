@@ -121,20 +121,29 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len)
 			spin_unlock(&sack_sl);
 			sack_top->tx_done(0);
 		}
+		else {
+			spin_unlock(&sack_sl);
+			printk(KERN_INFO "[cc2520] - stray ack received.\n");
+		}
 	}
 	else {
-		if (sack_state != CC2520_SACK_IDLE) {
-			printk(KERN_ALERT "[cc2520] - ERROR: Softack state is incorrect!\n");
-		}
-
 		if (cc2520_packet_requires_ack_reply(buf)) {
-			cc2520_packet_create_ack(buf, ack_buf);
-			sack_state = CC2520_SACK_TX_ACK;
-			spin_unlock(&sack_sl);
-			sack_bottom->tx(ack_buf, IEEE154_ACK_FRAME_LENGTH + 1);
-			sack_top->rx_done(buf, len);
+			if (sack_state == CC2520_SACK_IDLE) {
+				cc2520_packet_create_ack(buf, ack_buf);
+				sack_state = CC2520_SACK_TX_ACK;
+				spin_unlock(&sack_sl);
+				sack_bottom->tx(ack_buf, IEEE154_ACK_FRAME_LENGTH + 1);
+				sack_top->rx_done(buf, len);
+			}
+			else {
+				spin_unlock(&sack_sl);
+				printk(KERN_INFO "[cc2520] - ACK skipped, soft-ack layer busy.\n");
+			}
 		}
 		else {
+			//if (sack_state != CC2520_SACK_IDLE) {
+			//	printk(KERN_ALERT "[cc2520] - ERROR: Softack state is incorrect!\n");
+			//}
 			spin_unlock(&sack_sl);
 			sack_top->rx_done(buf, len);
 		}
