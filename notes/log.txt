@@ -183,9 +183,9 @@ call_task(layer_iface * iface, enum func)
 
 Low Power Listening & Software Acknowledgements
 
-LPL Sleep Listening Period = 512
+LPL Sleep Listening Period = 512 jiffies, ~15ms
 Blip L2 Retries: 5
-Blip L2 Delay: 103
+Blip L2 Delay: 103, ~3ms
 
 ============================================
 ============================================
@@ -204,11 +204,150 @@ choice.
 TODO:
 Handle statuses and actually catch some common error conditions.
 
+============================================
+============================================
+
+ToDo Still:
+- Implement Carrier Sense in a separate layer
+- Implement CSMA random backoffs in a separate layer
+- Finish software ACK support (TX hrtimer timeout)
+- Implement LPL in a separate layer
+- Filter nonunique packets
+- Implement timestamping?
 
 
+--------------------------
+Low Power Listening <- Request retransmission of packets not ACKed
+--------------------------
+Random Collision Avoidance / CSMA <- Retry a few times, avoid EBUSY, if
+    the channel is busy (CCA) then wait inital backoff, and then collision
+    backoff for a clear channel. 
+--------------------------
+Software Acks <- Auto-send ACKs for RX packets, timeout/wait for TX packets
+--------------------------
+Carrier Sense <- Return EBUSY if channel busy.
+--------------------------
+
+============================================
+============================================
+
+transmitInterval - how long we should transmit the packet for.
+listenLength - milliseconds the mote should turn on to check for incoming messages. Performed at every localWakeInterval
+localWakeInterval - how often the mote will wakeup and listen for incoming messages. 
 
 
+Low Power Listening Implementation:
+-----------------------------------
+Receiving packets is almost exactly the same as before, we receive the
+packet, and pass it to the upper layer.
 
+Transmitting packets is where things get a little tricky. From what I 
+can tell TinyOS is structured such that any packet can specify its own
+remote wakeup interval. That's fine, but not used in practice. I think
+all we really need to do is setup a single parameter, remoteWakeupInterval,
+and use that. Determining the proper interval is going to be a little tricky
+however. We'll expose it as an IOCTL. The trick comes from the fact that LPL
+is intertwined with CSMA, which will cause packets to backoff for an
+indeterminate amount of time when faced with congestion. 
 
+From what I can determine this is just a tradeoff you make. Packets are 
+going to be dropped in the face of congestion and LPL. Maybe the best
+solution is to extend the LPL receive window. Is the idea that upon
+detecting energy in the channel we should wake up for a period of time
+until energy has left the channel? 
+
+I think at the very least we extend the LPL window a little bit to ensure an
+extra transmission is made at the end, this way when there is no channel 
+contention even if the receive detects channel energy at the very end of the
+transmit it will still receive a packet. 
+
+New Variables:
+- transmitWindowLength - how long we will continuously attempt to
+    retransmit a packet before giving up. 
+
+CSMA Implementation:
+--------------------
+CSMA is a pretty simple thing to implement. It sounds like the primary
+goal is to check the CCA flag before starting to send, if the channel
+isn't clear we wait a random amount of time, bounded by an initial 
+backoff period. We then check for the CCA flag additional times
+and wait a lessor random amount of time between this. This effectively
+prioritizes the transmission of our signal. 
+
+New Variables:
+- backoffMin - the minimal backoff time
+- initalBackoffMax - how long we will backoff at most. 
+- continuousBackoffMax - how long we will backoff at most subsequently.
+
+Software Ack Implementation:
+----------------------------
+Soft-ack is also really simple to implement. For transmitted packets,
+if they require an ACK wait the timeout period after sending to receive
+an ack, if non is received bubble that error up to the application
+level.
+
+For received packets, if they require an ACK, send it immediately while
+still maintaining exclusive rights to transmit. 
+
+New Variables:
+- softAckTimeout - the soft-ack timeout value. Also together with
+    the length of the packet determines the transmit window. 
+
+Unique Implementation:
+----------------------
+Filters out packets the other layers have already seen.
+
+Sits between Soft-Ack and upper layers. If packet has
+already been seen then don't report it to the upper layers,
+allows the radio to ACK it again if needed. 
+
+Timestamping Implementation:
+----------------------------
+TBD. Most likely an ioctl setting a magic byte that is prepended
+to the header. 
+
+Interactions Between All Things:
+--------------------------------
+Things get layered like this:
+
+- characterDriver
+- unique
+- lpl
+- csma
+- soft-ack
+- radio
+
+Some interesting interactions between layers:
+
+- csma backoffs effect the retransmission of packets with lpl and the
+  ability for remote receivers to detect them. 
+- lpl's listen length is determined by the soft-ack period and the
+  values for csma back off. 
+- this means that with a very busy channel lpl could possibly fail?
+-- Upon lpl detecting channel energy it will start a 'listen period'.
+   I think this listen period proceeds whether it does or doesn't receive
+   a packet. If the transmitter is blocked by a busy channel for the 
+   duration of the transmission it will be unable to receive a message
+   and a retry attempt will have to be made. 
+
+Propagating Errors and Concurrency:
+
+- All errors should propagate through tx_done messages (rx errors don't really
+  matter)
+- Only a single packet is to be transmitted at a time, non of this stuff
+  really pipelines well, it all requires only one packet. 
+- The character driver layer uses a semaphore to transmit, and will
+  block if another thread attempts to transmit or receive a packet.
+- The radio, because it really takes almost no time to receive/transmit 
+  a packet, will spinlock and wait for RX to finish or another TX to 
+  complete. 
+- Most layers will pretend they will only ever see a single transmit
+  happen simultaneously. 
+- The character driver will return a EBUSY flag if two subsequent
+  transmissions are attempted from separate threads.
+- Because there's really next to no overhead or complexity
+  from RX we will simply allow it to randomly happen.
+- Possible double-buffering of the RX layer to allow for a read to
+  happen while another packet is being received. 
 
 

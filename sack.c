@@ -1,6 +1,8 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/hrtimer.h>
+
 #include "sack.h"
 #include "cc2520.h"
 #include "packet.h"
@@ -11,6 +13,7 @@ struct cc2520_interface *sack_bottom;
 static int cc2520_sack_tx(u8 * buf, u8 len);
 static void cc2520_sack_tx_done(u8 status);
 static void cc2520_sack_rx_done(u8 *buf, u8 len);
+static enum hrtimer_restart cc2520_sack_timer_cb(struct hrtimer *timer);
 
 // Two pieces to software acknowledgements:
 // 1 - Taking packets we're transmitting, setting an ACK flag
@@ -29,6 +32,8 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len);
 
 static u8 *ack_buf;
 static u8 *cur_tx_buf;
+static struct hrtimer timeout_timer;
+
 
 enum cc2520_sack_state_enum {
 	CC2520_SACK_IDLE,
@@ -42,6 +47,8 @@ static spinlock_t sack_sl;
 
 int cc2520_sack_init()
 {
+	ktime_t kt;
+
 	sack_top->tx = cc2520_sack_tx;
 	sack_bottom->tx_done = cc2520_sack_tx_done;
 	sack_bottom->rx_done = cc2520_sack_rx_done;
@@ -52,6 +59,13 @@ int cc2520_sack_init()
 	if (!ack_buf) {
 		return -EFAULT;
 	}
+
+    // Create a 100uS time period.
+    kt=ktime_set(10,100000);
+
+	hrtimer_init(&timeout_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    timeout_timer.function = &cc2520_sack_timer_cb; // callback
+    //hrtimer_start(&timeout_timer, kt, HRTIMER_MODE_REL);
 
 	spin_lock_init(&sack_sl);
 	sack_state = CC2520_SACK_IDLE;
@@ -64,6 +78,8 @@ void cc2520_sack_free()
 	if (ack_buf) {
 		kfree(ack_buf);
 	}
+
+	hrtimer_cancel(&timeout_timer);
 }
 
 static int cc2520_sack_tx(u8 * buf, u8 len)
@@ -149,6 +165,21 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len)
 		}
 	}
 }
+
+static enum hrtimer_restart cc2520_sack_timer_cb(struct hrtimer *timer)
+{
+	//ktime_t kt;
+
+	//gpio_set_value(23, pinValue == 1);
+	//pinValue = !pinValue;
+
+	// Create a 100uS time period.
+	//kt=ktime_set(0,100000);
+	//hrtimer_forward_now(&utimer, kt);
+
+	return HRTIMER_NORESTART;
+}
+
 
 // States:
 // IDLE

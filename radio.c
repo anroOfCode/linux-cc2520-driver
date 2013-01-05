@@ -429,6 +429,7 @@ static int cc2520_radio_tx(u8 *buf, u8 len)
 
 static void cc2520_radio_beginTx()
 {
+	// TODO: Check for CCA flag, return EBUSY if busy.
 	int status;
 	int buf_offset;
 	int i;
