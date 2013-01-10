@@ -40,7 +40,7 @@ int main(char ** argv, int argc)
 		printf("Sending a test message...\n");
 
 		// 8 Byte Header, 6 Byte Payload.
-		char test_msg[] = {0x0D, 0x41, 0x88, (char) i, 0x22, 0x00, 0xFF, 0xFF, 0x01, 0x00, 0x72, (char) i};
+		char test_msg[] = {0x0D, 0x61, 0x88, (char) i, 0x22, 0x00, 0x01, 0x00, 0x01, 0x00, 0x72, (char) i};
 		result = write(file_desc, test_msg, 12);
 
 		printf("result %d\n", result);

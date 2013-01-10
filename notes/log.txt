@@ -353,5 +353,19 @@ Propagating Errors and Concurrency:
 
 ToDo:
 - Measure software ack latency.
+
+IMPORTANT IMPLEMENTATION DETAIL:
+--------------------------------
+The len field in the tx and rx_done callbacks MUST correspond
+EXACTLY with the number of bytes in the buffer being returned.
+
+The buffers MUST include the length byte, which will be one
+less than the len value in the case of a RX (the last two bytes
+which usually are the FCS, will be replaced by CC2520-specific
+fields however), or one more than the len value in the case of
+a TX (the last two bytes are missing, the len value includes
+the length field, while the length field itself does not. -1 + 2 = 1).
  
+
+
 

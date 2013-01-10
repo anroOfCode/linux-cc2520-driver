@@ -53,11 +53,14 @@ int cc2520_sack_init()
 	sack_bottom->tx_done = cc2520_sack_tx_done;
 	sack_bottom->rx_done = cc2520_sack_rx_done;
 
-	cur_tx_buf = NULL;
-
 	ack_buf = kmalloc(IEEE154_ACK_FRAME_LENGTH + 1, GFP_KERNEL);
 	if (!ack_buf) {
-		return -EFAULT;
+		goto error;
+	}
+
+	cur_tx_buf = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
+	if (!cur_tx_buf) {
+		goto error;
 	}
 
     // Create a 100uS time period.
@@ -71,12 +74,29 @@ int cc2520_sack_init()
 	sack_state = CC2520_SACK_IDLE;
 
 	return 0;
+
+	error:
+		if (ack_buf) {
+			kfree(ack_buf);
+			ack_buf = NULL;
+		}
+
+		if (cur_tx_buf) {
+			kfree(cur_tx_buf);
+			cur_tx_buf = NULL;
+		}
+
+		return -EFAULT;
 }
 
 void cc2520_sack_free()
 {
 	if (ack_buf) {
 		kfree(ack_buf);
+	}
+
+	if (cur_tx_buf) {
+		kfree(cur_tx_buf);
 	}
 
 	hrtimer_cancel(&timeout_timer);
@@ -95,8 +115,9 @@ static int cc2520_sack_tx(u8 * buf, u8 len)
 	sack_state = CC2520_SACK_TX;
 	spin_unlock(&sack_sl);
 
-	cur_tx_buf = buf;
-	return sack_bottom->tx(buf, len);
+	memcpy(cur_tx_buf, buf, len);
+	
+	return sack_bottom->tx(cur_tx_buf, len);
 }
 
 static void cc2520_sack_tx_done(u8 status)
@@ -104,15 +125,16 @@ static void cc2520_sack_tx_done(u8 status)
 	spin_lock(&sack_sl);
 	if (sack_state == CC2520_SACK_TX) {
 		if (cc2520_packet_requires_ack_wait(cur_tx_buf)) {
+			printk(KERN_INFO "[cc2520] - Entering TX wait state.\n");
 			sack_state = CC2520_SACK_TX_WAIT;
-			spin_unlock(&sack_sl);
+			//spin_unlock(&sack_sl);
 		}
-		else {
+		//else {
 			// do we need to wait for an ACK
 			sack_state = CC2520_SACK_IDLE;
 			spin_unlock(&sack_sl);
 			sack_top->tx_done(status);
-		}
+		//}
 	}
 	else if (sack_state == CC2520_SACK_TX_ACK) {
 		sack_state = CC2520_SACK_IDLE;
@@ -129,7 +151,6 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len)
 	// an ACK, trasmit it.
 	spin_lock(&sack_sl);
 
-	// If IDLE this must be a new RX packet
 	if (cc2520_packet_is_ack(buf)) {
 		if (sack_state == CC2520_SACK_TX_WAIT && 
 			cc2520_packet_is_ack_to(buf, cur_tx_buf)) {
