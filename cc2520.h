@@ -11,6 +11,7 @@
 // by the printk function.
 //#define DBG(x) printk x
 #define DBG(x) do {} while (0)
+#define ERR(X) printk x
 
 //////////////////////////////
 // Configuration for driver

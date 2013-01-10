@@ -351,3 +351,7 @@ Propagating Errors and Concurrency:
   happen while another packet is being received. 
 
 
+ToDo:
+- Measure software ack latency.
+ 
+
