@@ -14,6 +14,7 @@ static int cc2520_sack_tx(u8 * buf, u8 len);
 static void cc2520_sack_tx_done(u8 status);
 static void cc2520_sack_rx_done(u8 *buf, u8 len);
 static enum hrtimer_restart cc2520_sack_timer_cb(struct hrtimer *timer);
+static void cc2520_sack_start_timer(void);
 
 // Two pieces to software acknowledgements:
 // 1 - Taking packets we're transmitting, setting an ACK flag
@@ -33,7 +34,7 @@ static enum hrtimer_restart cc2520_sack_timer_cb(struct hrtimer *timer);
 static u8 *ack_buf;
 static u8 *cur_tx_buf;
 static struct hrtimer timeout_timer;
-
+static int ack_timeout; //in microseconds
 
 enum cc2520_sack_state_enum {
 	CC2520_SACK_IDLE,
@@ -47,8 +48,6 @@ static spinlock_t sack_sl;
 
 int cc2520_sack_init()
 {
-	ktime_t kt;
-
 	sack_top->tx = cc2520_sack_tx;
 	sack_bottom->tx_done = cc2520_sack_tx_done;
 	sack_bottom->rx_done = cc2520_sack_rx_done;
@@ -63,13 +62,9 @@ int cc2520_sack_init()
 		goto error;
 	}
 
-    // Create a 100uS time period.
-    kt=ktime_set(10,100000);
-
 	hrtimer_init(&timeout_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
     timeout_timer.function = &cc2520_sack_timer_cb; // callback
-    //hrtimer_start(&timeout_timer, kt, HRTIMER_MODE_REL);
-
+    
 	spin_lock_init(&sack_sl);
 	sack_state = CC2520_SACK_IDLE;
 
@@ -102,6 +97,19 @@ void cc2520_sack_free()
 	hrtimer_cancel(&timeout_timer);
 }
 
+void cc2520_sack_set_timeout(int timeout)
+{
+	ack_timeout = timeout;
+}
+
+static void cc2520_sack_start_timer()
+{
+	// Create a 100uS time period.
+    ktime_t kt;
+    kt=ktime_set(10,100000);
+	hrtimer_start(&timeout_timer, kt, HRTIMER_MODE_REL);
+}
+
 static int cc2520_sack_tx(u8 * buf, u8 len)
 {
 	spin_lock(&sack_sl);
@@ -116,7 +124,7 @@ static int cc2520_sack_tx(u8 * buf, u8 len)
 	spin_unlock(&sack_sl);
 
 	memcpy(cur_tx_buf, buf, len);
-	
+
 	return sack_bottom->tx(cur_tx_buf, len);
 }
 
@@ -127,14 +135,16 @@ static void cc2520_sack_tx_done(u8 status)
 		if (cc2520_packet_requires_ack_wait(cur_tx_buf)) {
 			printk(KERN_INFO "[cc2520] - Entering TX wait state.\n");
 			sack_state = CC2520_SACK_TX_WAIT;
-			//spin_unlock(&sack_sl);
+			spin_unlock(&sack_sl);
+
+
+			// Start hr timer.
 		}
-		//else {
-			// do we need to wait for an ACK
+		else {
 			sack_state = CC2520_SACK_IDLE;
 			spin_unlock(&sack_sl);
 			sack_top->tx_done(status);
-		//}
+		}
 	}
 	else if (sack_state == CC2520_SACK_TX_ACK) {
 		sack_state = CC2520_SACK_IDLE;

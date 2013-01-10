@@ -108,6 +108,7 @@ struct cc2520_gpio_state {
 	unsigned int sfd_irq;
 };
 
+// DEPRECATED
 struct cc2520_state {
 	// Hardware
 	struct cc2520_gpio_state gpios;
@@ -220,8 +221,6 @@ typedef union cc2520_fifopctrl {
     } f;
 } cc2520_fifopctrl_t;
 
-
-
 typedef union cc2520_frmfilt0 {
     u8 value;
     struct {
@@ -260,8 +259,6 @@ typedef union cc2520_srcmatch {
 typedef union cc2520_rxctrl {
     u8 value;
 } cc2520_rxctrl_t;
-
-
 
 typedef union cc2520_fsctrl {
     u8 value;

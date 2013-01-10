@@ -12,6 +12,7 @@
 #include "cc2520.h"
 #include "interface.h"
 #include "radio.h"
+#include "sack.h"
 
 struct cc2520_interface *interface_bottom;
 
@@ -44,6 +45,7 @@ static void cc2520_interface_rx_done(u8 *buf, u8 len);
 static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data);
 static void interface_ioctl_set_address(struct cc2520_set_address_data *data);
 static void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data);
+static void interface_ioctl_set_ack(struct cc2520_set_ack_data *data);
 
 static long interface_ioctl(struct file *file,
 		 unsigned int ioctl_num,
@@ -156,6 +158,9 @@ static long interface_ioctl(struct file *file,
 		case CC2520_IO_RADIO_SET_TXPOWER:
 			interface_ioctl_set_txpower((struct cc2520_set_txpower_data *) ioctl_param);
 			break;
+		case CC2520_IO_RADIO_SET_ACK:
+			interface_ioctl_set_ack((struct cc2520_set_ack_data*) ioctl_param);
+			break;
 	}
 
 	return 0;
@@ -218,6 +223,21 @@ static void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data)
 
 	printk(KERN_INFO "[cc2520] - setting txpower: %d\n", ldata.txpower);
 	cc2520_radio_set_txpower(ldata.txpower);
+}
+
+static void interface_ioctl_set_ack(struct cc2520_set_ack_data *data)
+{
+	int result;
+	struct cc2520_set_ack_data ldata;
+	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_ack_data));
+
+	if (result) {
+		printk(KERN_INFO "[cc2520] - an error occurred setting soft ack\n");
+		return;
+	}
+
+	printk(KERN_INFO "[cc2520] - setting softack timeout\n");
+	cc2520_sack_set_timeout(ldata.timeout);
 }
 
 /////////////////

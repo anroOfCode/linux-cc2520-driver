@@ -8,5 +8,6 @@ extern struct cc2520_interface *sack_bottom;
 
 int cc2520_sack_init(void);
 void cc2520_sack_free(void);
+void cc2520_sack_set_timeout(int timeout);
 
 #endif
