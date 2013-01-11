@@ -49,7 +49,7 @@ Next replace the current SPI driver with the driver provided lovingly by msperl:
 
 ```
 wget https://raw.github.com/msperl/linux/73afedc07e3b94d8b9d588912faf26081178d268/drivers/spi/spi-bcm2708.c
-mv spi-bcm2708 linux/drivers/spi
+mv spi-bcm2708.c linux/drivers/spi
 ```
 
 I patched a small part of this driver to desert the chip-select line. Find the following lines 
@@ -63,7 +63,7 @@ in spi-bcm-2708.c and replace them.
 	}
 ```
 
-***Replace With:***
+**Replace With:**
 
 ```
 	if (!(flags | FLAGS_LAST_TRANSFER)) {
@@ -123,7 +123,7 @@ the following line to ensure the SPI driver is loaded:
 [   15.469266] bcm2708_spi bcm2708_spi.0: SPI Controller running in interrupt-driven mode
 ```
 
-=== Step Three: Checkout and Build This Module ===
+### Step Three: Checkout and Build This Module
 
 Finally we're ready to compile/load this module and really get cooking. Checkout the
 code and build it.
@@ -173,11 +173,7 @@ gcc read.c -o read
 
 **To Load the Module**
 
-```
-sudo ./reload.sh
-sudo ./setup.sh
-```
-
+I've included two utilities to make things a little easier.
 These utilities do really really basic stuff:
 
   * <code>setup.sh</code> - Installs a character driver interface and sets proper
@@ -198,6 +194,13 @@ Jan 11 00:29:11 raspberrypi kernel: [ 6291.243178] spi spi0.0: setup mode 0, 8 b
 Jan 11 00:29:11 raspberrypi kernel: [ 6291.243306] bcm2708_spi bcm2708_spi.0: registered child spi0.0
 Jan 11 00:29:11 raspberrypi kernel: [ 6291.243359] [cc2520] - Inserting SPI protocol driver.
 Jan 11 00:29:11 raspberrypi kernel: [ 6291.243549] [cc2520] - Char interface registered on 251
+```
+
+So to get things up and running just go ahead and run them both:
+
+```
+sudo ./reload.sh
+sudo ./setup.sh
 ```
 
 **To Test the Driver**
