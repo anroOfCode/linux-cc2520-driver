@@ -68,10 +68,13 @@
 #define CC2520_DEF_PAN 0x22
 #define CC2520_DEF_SHORT_ADDR 0x01
 #define CC2520_DEF_EXT_ADDR 0x01
+#define CC2520_DEF_ACK_TIMEOUT 2000
 
 // Error codes
+#define CC2520_TX_SUCCESS 0
 #define CC2520_TX_BUSY 1
 #define CC2520_TX_LENGTH 2
+#define CC2520_TX_ACK_TIMEOUT 3
 
 // XOSC Period in nanoseconds.
 #define CC2520_XOSC_PERIOD 31

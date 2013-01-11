@@ -68,6 +68,8 @@ int cc2520_sack_init()
 	spin_lock_init(&sack_sl);
 	sack_state = CC2520_SACK_IDLE;
 
+	ack_timeout = CC2520_DEF_ACK_TIMEOUT;
+
 	return 0;
 
 	error:
@@ -104,9 +106,8 @@ void cc2520_sack_set_timeout(int timeout)
 
 static void cc2520_sack_start_timer()
 {
-	// Create a 100uS time period.
     ktime_t kt;
-    kt=ktime_set(10,100000);
+    kt = ktime_set(0, 1000 * ack_timeout);
 	hrtimer_start(&timeout_timer, kt, HRTIMER_MODE_REL);
 }
 
@@ -135,10 +136,8 @@ static void cc2520_sack_tx_done(u8 status)
 		if (cc2520_packet_requires_ack_wait(cur_tx_buf)) {
 			printk(KERN_INFO "[cc2520] - Entering TX wait state.\n");
 			sack_state = CC2520_SACK_TX_WAIT;
+			cc2520_sack_start_timer();
 			spin_unlock(&sack_sl);
-
-
-			// Start hr timer.
 		}
 		else {
 			sack_state = CC2520_SACK_IDLE;
@@ -166,7 +165,9 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len)
 			cc2520_packet_is_ack_to(buf, cur_tx_buf)) {
 			sack_state = CC2520_SACK_IDLE;
 			spin_unlock(&sack_sl);
-			sack_top->tx_done(0);
+
+			hrtimer_cancel(&timeout_timer);
+			sack_top->tx_done(CC2520_TX_SUCCESS);
 		}
 		else {
 			spin_unlock(&sack_sl);
@@ -199,19 +200,19 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len)
 
 static enum hrtimer_restart cc2520_sack_timer_cb(struct hrtimer *timer)
 {
-	//ktime_t kt;
+	spin_lock(&sack_sl);
 
-	//gpio_set_value(23, pinValue == 1);
-	//pinValue = !pinValue;
+	if (sack_state == CC2520_SACK_TX_WAIT) {
+		printk(KERN_INFO "[cc2520] - tx ack timeout exceeded.\n");
+		sack_state = CC2520_SACK_IDLE;
+		spin_unlock(&sack_sl);
 
-	// Create a 100uS time period.
-	//kt=ktime_set(0,100000);
-	//hrtimer_forward_now(&utimer, kt);
-
+		sack_top->tx_done(CC2520_TX_ACK_TIMEOUT);
+	}
+	else {
+		spin_unlock(&sack_sl);
+	}
+	
 	return HRTIMER_NORESTART;
 }
 
-
-// States:
-// IDLE
-// TX_WAIT

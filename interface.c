@@ -35,7 +35,6 @@ static struct semaphore rx_done_sem;
 
 // Results, stored by the callbacks
 static int tx_result;
-static int rx_result;
 
 DECLARE_WAIT_QUEUE_HEAD(cc2520_interface_read_queue);
 
