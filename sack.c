@@ -186,7 +186,7 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len)
 			}
 			else {
 				spin_unlock(&sack_sl);
-				INFO((KERN_INFO "[cc2520] - ACK skipped, soft-ack layer busy.\n"));
+				INFO((KERN_INFO "[cc2520] - ACK skipped, soft-ack layer busy. %d \n", sack_state));
 			}
 		}
 		else {

@@ -45,7 +45,6 @@ static int radio_state;
 
 enum cc2520_radio_state_enum {
     CC2520_RADIO_STATE_IDLE,
-    CC2520_RADIO_STATE_RX_SFD_DONE,
     CC2520_RADIO_STATE_RX,
     CC2520_RADIO_STATE_TX,
     CC2520_RADIO_STATE_TX_SFD_DONE,
@@ -70,6 +69,10 @@ static void cc2520_radio_completeTx(void);
 
 
 struct cc2520_interface *radio_top;
+
+// TODO: These methods are stupid
+// and make things more confusing.
+// Refactor them out.
 
 void cc2520_radio_lock(int state)
 {
@@ -150,7 +153,7 @@ int cc2520_radio_tx_unlock_sfd(void)
 int cc2520_radio_rx_lock(void)
 {
 	spin_lock(&radio_sl);
-	if (radio_state == CC2520_RADIO_STATE_RX_SFD_DONE) {
+	if (radio_state == CC2520_RADIO_STATE_IDLE) {
 		radio_state = CC2520_RADIO_STATE_RX;
 		spin_unlock(&radio_sl);
 		return 1;
@@ -368,12 +371,7 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 	// incoming/outgoing packets. To be used later...
 	sfd_nanos_ts = nano_timestamp;
 
-	if (is_high) {
-		if (cc2520_radio_idle_lock(CC2520_RADIO_STATE_RX_SFD_DONE)) {
-			DBG((KERN_INFO "[cc2520] - beginning read op.\n"));
-		}
-	}
-	else {
+	if (!is_high) {
 		// SFD falling indicates TX completion
 		// if we're currently in TX mode, unlock.
 		if (cc2520_radio_tx_unlock_sfd()) {
@@ -422,7 +420,7 @@ static int cc2520_radio_tx(u8 *buf, u8 len)
 
 	memcpy(tx_buf_r, buf, len);
 	tx_buf_r_len = len;
-	// Turn off the radio
+
 	cc2520_radio_beginTx();
 	return 0;
 }
