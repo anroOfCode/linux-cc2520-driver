@@ -35,16 +35,15 @@ static u8 *ack_buf;
 static u8 *cur_tx_buf;
 static struct hrtimer timeout_timer;
 static int ack_timeout; //in microseconds
+static int sack_state;
+static spinlock_t sack_sl;
 
 enum cc2520_sack_state_enum {
 	CC2520_SACK_IDLE,
 	CC2520_SACK_TX, // Waiting for a tx to complete
-	CC2520_SACK_TX_WAIT, // Waiting for an ack
+	CC2520_SACK_TX_WAIT, // Waiting for an ack to be received
 	CC2520_SACK_TX_ACK, // Waiting for a sent ack to finish
 };
-
-static int sack_state;
-static spinlock_t sack_sl;
 
 int cc2520_sack_init()
 {
@@ -63,7 +62,7 @@ int cc2520_sack_init()
 	}
 
 	hrtimer_init(&timeout_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    timeout_timer.function = &cc2520_sack_timer_cb; // callback
+    timeout_timer.function = &cc2520_sack_timer_cb;
     
 	spin_lock_init(&sack_sl);
 	sack_state = CC2520_SACK_IDLE;
@@ -114,9 +113,11 @@ static void cc2520_sack_start_timer()
 static int cc2520_sack_tx(u8 * buf, u8 len)
 {
 	spin_lock(&sack_sl);
+
 	if (sack_state != CC2520_SACK_IDLE) {
-		printk(KERN_INFO "[cc2520] - Ut oh! Tx spinlocking.\n");
+		INFO((KERN_INFO "[cc2520] - Ut oh! Tx spinlocking.\n"));
 	}
+
 	while (sack_state != CC2520_SACK_IDLE) {
 		spin_unlock(&sack_sl);
 		spin_lock(&sack_sl);
@@ -134,7 +135,7 @@ static void cc2520_sack_tx_done(u8 status)
 	spin_lock(&sack_sl);
 	if (sack_state == CC2520_SACK_TX) {
 		if (cc2520_packet_requires_ack_wait(cur_tx_buf)) {
-			printk(KERN_INFO "[cc2520] - Entering TX wait state.\n");
+			DBG((KERN_INFO "[cc2520] - Entering TX wait state.\n"));
 			sack_state = CC2520_SACK_TX_WAIT;
 			cc2520_sack_start_timer();
 			spin_unlock(&sack_sl);
@@ -150,7 +151,7 @@ static void cc2520_sack_tx_done(u8 status)
 		spin_unlock(&sack_sl);
 	}
 	else {
-		printk(KERN_ALERT "[cc2520] - ERROR: tx_done state engine in impossible state.\n");
+		ERR((KERN_ALERT "[cc2520] - ERROR: tx_done state engine in impossible state.\n"));
 	}
 }
 
@@ -171,7 +172,7 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len)
 		}
 		else {
 			spin_unlock(&sack_sl);
-			printk(KERN_INFO "[cc2520] - stray ack received.\n");
+			INFO((KERN_INFO "[cc2520] - stray ack received.\n"));
 		}
 	}
 	else {
@@ -185,13 +186,10 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len)
 			}
 			else {
 				spin_unlock(&sack_sl);
-				printk(KERN_INFO "[cc2520] - ACK skipped, soft-ack layer busy.\n");
+				INFO((KERN_INFO "[cc2520] - ACK skipped, soft-ack layer busy.\n"));
 			}
 		}
 		else {
-			//if (sack_state != CC2520_SACK_IDLE) {
-			//	printk(KERN_ALERT "[cc2520] - ERROR: Softack state is incorrect!\n");
-			//}
 			spin_unlock(&sack_sl);
 			sack_top->rx_done(buf, len);
 		}
@@ -203,16 +201,16 @@ static enum hrtimer_restart cc2520_sack_timer_cb(struct hrtimer *timer)
 	spin_lock(&sack_sl);
 
 	if (sack_state == CC2520_SACK_TX_WAIT) {
-		printk(KERN_INFO "[cc2520] - tx ack timeout exceeded.\n");
+		DBG((KERN_INFO "[cc2520] - tx ack timeout exceeded.\n"));
 		sack_state = CC2520_SACK_IDLE;
 		spin_unlock(&sack_sl);
 
-		sack_top->tx_done(CC2520_TX_ACK_TIMEOUT);
+		sack_top->tx_done(-CC2520_TX_ACK_TIMEOUT);
 	}
 	else {
 		spin_unlock(&sack_sl);
 	}
-	
+
 	return HRTIMER_NORESTART;
 }
 

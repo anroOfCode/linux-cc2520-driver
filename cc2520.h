@@ -11,7 +11,8 @@
 // by the printk function.
 //#define DBG(x) printk x
 #define DBG(x) do {} while (0)
-#define ERR(X) printk x
+#define ERR(x) printk x
+#define INFO(x) printk x
 
 //////////////////////////////
 // Configuration for driver
@@ -103,7 +104,7 @@ struct cc2520_interface {
 };
 
 ///
-// KEEP THESE AROUND FOR LEGACY REASONS:
+// KEEP THESE AROUND FOR NOW, REFACTOR OUT LATER.
 //
 
 struct cc2520_gpio_state {
