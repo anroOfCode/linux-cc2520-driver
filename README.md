@@ -27,7 +27,7 @@ the Raspberry Pi's GitHub (not the 3.2 standard version).
 These instructions assume you have almost nothing installed, if you're comfortable
 and have a preexisting build environment then skip a lot of the preliminary stuff.
 
-=== Step One: Setup a 3.6 Kernel Source ===
+### Step One: Setup a 3.6 Kernel Source
 First you'll need to get the Raspberry Pi 3.6 kernel source tree onto your computer.
 To do this make some new folders 
 
@@ -99,7 +99,7 @@ pi@raspberrypi ~ $ uname -a
 Linux raspberrypi 3.6.11+ #3 PREEMPT Tue Dec 25 13:31:30 EST 2012 armv6l GNU/Linux
 ```
 
-=== Step Two: Enable the SPI driver at boot ===
+### Step Two: Enable the SPI driver at boot
 Now that we've gotten the kernel installed we need to enable automatic loading
 of the SPI driver at boot. Edit <code>/etc/modprobe.d/raspi-blacklist.conf</code>
 and comment out the line that blacklists the SPI driver from boot. It should look
@@ -138,7 +138,7 @@ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi-
 
 You should see some build output and end up with a file called cc2520.ko.
 
-=== Step Four: Move the module and support files to the pi ===
+### Step Four: Move the module and support files to the pi
 
 Now lets move this module to the Pi, as well as some support files to test and
 do other things.
@@ -157,7 +157,7 @@ sftp> put reload.sh
 
 ```
 
-=== Step Five: Load the Module and Build Test Utilities ===
+### Step Five: Load the Module and Build Test Utilities
 
 We're ready to finally test things. Move to the Pi now, we'll compile
 the test utilities on the Pi itself. They test the basic operation of the
@@ -219,7 +219,7 @@ on the RPi will cause all the lights to blink.
 
 The output will look something like this:
 
-** read.c **
+**read.c**
 ```
 Receiving a test message...
 result 14
@@ -235,7 +235,7 @@ result 14
 read  0x0D 0x61 0x88 0xD7 0x22 0x00 0x01 0x00 0x01 0x00 0x76 0xD8 0x13 0xEA
 ```
 
-** write.c **
+**write.c**
 ```
 Sending a test message...
 result 12
