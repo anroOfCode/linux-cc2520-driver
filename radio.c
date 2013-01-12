@@ -29,8 +29,14 @@ static struct spi_transfer tsfer1;
 static struct spi_transfer tsfer2;
 static struct spi_transfer tsfer3;
 
+static struct spi_message rx_msg;
+static struct spi_transfer rx_tsfer;
+
 static u8 *tx_buf;
 static u8 *rx_buf;
+
+static u8 *rx_out_buf;
+static u8 *rx_in_buf;
 
 static u8 *tx_buf_r;
 static u8 *rx_buf_r;
@@ -39,13 +45,16 @@ static u8 tx_buf_r_len;
 static u64 sfd_nanos_ts;
 
 static spinlock_t radio_sl;
+
+static spinlock_t pending_rx_sl;
+static int pending_rx;
+
 static spinlock_t rx_buf_sl;
 
 static int radio_state;
 
 enum cc2520_radio_state_enum {
     CC2520_RADIO_STATE_IDLE,
-    CC2520_RADIO_STATE_RX,
     CC2520_RADIO_STATE_TX,
     CC2520_RADIO_STATE_TX_SFD_DONE,
     CC2520_RADIO_STATE_TX_SPI_DONE,
@@ -64,6 +73,7 @@ static void cc2520_radio_finishRx(void *arg);
 
 static int cc2520_radio_tx(u8 *buf, u8 len);
 static void cc2520_radio_beginTx(void);
+static void cc2520_radio_continueTx_check(void *arg);
 static void cc2520_radio_continueTx(void *arg);
 static void cc2520_radio_completeTx(void);
 
@@ -150,18 +160,6 @@ int cc2520_radio_tx_unlock_sfd(void)
 	return 0;
 }
 
-int cc2520_radio_rx_lock(void)
-{
-	spin_lock(&radio_sl);
-	if (radio_state == CC2520_RADIO_STATE_IDLE) {
-		radio_state = CC2520_RADIO_STATE_RX;
-		spin_unlock(&radio_sl);
-		return 1;
-	}
-	spin_unlock(&radio_sl);
-	return 0;
-}
-
 int cc2520_radio_lock_status(void)
 {
 	int status;
@@ -188,6 +186,7 @@ int cc2520_radio_init()
 
 	spin_lock_init(&radio_sl);
 	spin_lock_init(&rx_buf_sl);
+	spin_lock_init(&pending_rx_sl);
 
 	radio_state = CC2520_RADIO_STATE_IDLE;
 
@@ -199,6 +198,18 @@ int cc2520_radio_init()
 		
 	rx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);    
 	if (!rx_buf) {
+		result = -EFAULT;
+		goto error;
+	}
+
+	rx_out_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);
+	if (!rx_out_buf) {
+		result = -EFAULT;
+		goto error;
+	}
+		
+	rx_in_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);    
+	if (!rx_in_buf) {
 		result = -EFAULT;
 		goto error;
 	}
@@ -220,23 +231,34 @@ int cc2520_radio_init()
 	error:
 		if (rx_buf_r) {
 			kfree(rx_buf_r);
-			rx_buf_r = 0;     
+			rx_buf_r = NULL;     
 		}
 
 		if (tx_buf_r) {
 			kfree(tx_buf_r);
-			tx_buf_r = 0;
+			tx_buf_r = NULL;
 		}
 
 		if (rx_buf) {
 			kfree(rx_buf);
-			rx_buf = 0;
+			rx_buf = NULL;
 		}
 
 		if (tx_buf) {
 			kfree(tx_buf);
-			tx_buf = 0;
+			tx_buf = NULL;
 		}
+
+		if (rx_in_buf) {
+			kfree(rx_in_buf);
+			rx_in_buf = NULL;
+		}
+
+		if (rx_out_buf) {
+			kfree(rx_out_buf);
+			rx_out_buf = NULL;
+		}
+
 		return result;
 }
 
@@ -244,22 +266,32 @@ void cc2520_radio_free()
 {
 	if (rx_buf_r) {
 		kfree(rx_buf_r);
-		rx_buf_r = 0;
+		rx_buf_r = NULL;
 	}
 
 	if (tx_buf_r) {
 		kfree(tx_buf_r);
-		tx_buf_r = 0;
+		tx_buf_r = NULL;
 	}
 
 	if (rx_buf) {
 		kfree(rx_buf);
-		rx_buf = 0;
+		rx_buf = NULL;
 	}
 
 	if (tx_buf) {
 		kfree(tx_buf);
-		tx_buf = 0;
+		tx_buf = NULL;
+	}
+
+	if (rx_in_buf) {
+		kfree(rx_in_buf);
+		rx_in_buf = NULL;
+	}
+
+	if (rx_out_buf) {
+		kfree(rx_out_buf);
+		rx_out_buf = NULL;
 	}
 }
 
@@ -309,6 +341,7 @@ void cc2520_radio_off()
 	cc2520_radio_unlock();
 }
 
+// legacy, remove soon.
 static void spike_completion_handler(void *arg)
 {   
 	printk(KERN_INFO "Spi Callback complete.");
@@ -383,13 +416,17 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 // context: interrupt
 void cc2520_radio_fifop_occurred()
 {
-	// Only start receiving a packet if we are
-	// currently in the Idle state and can lock to
-	// RX.
-	if (cc2520_radio_rx_lock())
+
+	spin_lock(&pending_rx_sl);
+
+	if (pending_rx > 0) {
+		spin_unlock(&pending_rx_sl);
+	}
+	else {
+		pending_rx++;
+		spin_unlock(&pending_rx_sl);
 		cc2520_radio_beginRx();
-	else
-		DBG((KERN_ALERT "[cc2520] - ERROR: fifop occurred while not in rx.\n"));
+	}	
 }
 
 void cc2520_radio_reset(void)
@@ -429,6 +466,26 @@ static void cc2520_radio_beginTx()
 {
 	// TODO: Check for CCA flag, return EBUSY if busy.
 	int status;
+
+	tsfer1.tx_buf = tx_buf;
+	tsfer1.rx_buf = rx_buf;
+	tsfer1.len = 0;
+	tsfer1.cs_change = 1;
+	tx_buf[tsfer1.len++] = CC2520_CMD_SRFOFF;
+
+	spi_message_init(&msg);
+	msg.complete = cc2520_radio_continueTx_check;
+	msg.context = NULL;
+
+	spi_message_add_tail(&tsfer1, &msg);
+
+	status = spi_async(state.spi_device, &msg); 
+}
+
+static void cc2520_radio_continueTx_check(void *arg)
+{
+	// TODO: Check for CCA flag, return EBUSY if busy.
+	int status;
 	int buf_offset;
 	int i;
 
@@ -438,7 +495,12 @@ static void cc2520_radio_beginTx()
 	tsfer1.rx_buf = rx_buf + buf_offset;
 	tsfer1.len = 0;
 	tsfer1.cs_change = 1;
-	tx_buf[buf_offset + tsfer1.len++] = CC2520_CMD_SRFOFF;
+
+	if (gpio_get_value(CC2520_FIFO) == 1) {
+		INFO((KERN_INFO "[cc2520] - tx/rx race condition adverted.\n"));
+		tx_buf[buf_offset + tsfer1.len++] = CC2520_CMD_SFLUSHRX;
+	}
+
 	tx_buf[buf_offset + tsfer1.len++] = CC2520_CMD_TXBUF;
 	
 	// Length + FCF
@@ -478,7 +540,7 @@ static void cc2520_radio_beginTx()
 	if (tx_buf_r_len > 3)
 		spi_message_add_tail(&tsfer3, &msg);
 
-	status = spi_async(state.spi_device, &msg); 
+	status = spi_async(state.spi_device, &msg); 	
 }
 
 static void cc2520_radio_continueTx(void *arg)
@@ -508,20 +570,22 @@ static void cc2520_radio_beginRx()
 {
 	int status;
 
-	tsfer.len = 0;
-	tx_buf[tsfer.len++] = CC2520_CMD_RXBUF;
-	tx_buf[tsfer.len++] = 0;
+	rx_tsfer.tx_buf = rx_out_buf;
+	rx_tsfer.rx_buf = rx_in_buf;
+	rx_tsfer.len = 0;
+	rx_out_buf[rx_tsfer.len++] = CC2520_CMD_RXBUF;
+	rx_out_buf[rx_tsfer.len++] = 0;
 
-	tsfer.cs_change = 1;
+	rx_tsfer.cs_change = 1;
 
-	memset(rx_buf, 0, SPI_BUFF_SIZE);
+	memset(rx_in_buf, 0, SPI_BUFF_SIZE);
 
-	spi_message_init(&msg);
-	msg.complete = cc2520_radio_continueRx;
-	msg.context = NULL;
-	spi_message_add_tail(&tsfer, &msg);
+	spi_message_init(&rx_msg);
+	rx_msg.complete = cc2520_radio_continueRx;
+	rx_msg.context = NULL;
+	spi_message_add_tail(&rx_tsfer, &rx_msg);
 
-	status = spi_async(state.spi_device, &msg);   
+	status = spi_async(state.spi_device, &rx_msg);   
 }
 
 static void cc2520_radio_continueRx(void *arg)
@@ -533,22 +597,22 @@ static void cc2520_radio_continueRx(void *arg)
 	// async operation called in beginRxRead.
 	int len;
 
-	len = rx_buf[1];
+	len = rx_in_buf[1];
 
-	tsfer.len = 0;
-	tx_buf[tsfer.len++] = CC2520_CMD_RXBUF;
+	rx_tsfer.len = 0;
+	rx_out_buf[rx_tsfer.len++] = CC2520_CMD_RXBUF;
 	for (i = 0; i < len; i++) 
-		tx_buf[tsfer.len++] = 0;
+		rx_out_buf[rx_tsfer.len++] = 0;
 
-	tsfer.cs_change = 1;
+	rx_tsfer.cs_change = 1;
 
-	spi_message_init(&msg);
-	msg.complete = cc2520_radio_finishRx;
+	spi_message_init(&rx_msg);
+	rx_msg.complete = cc2520_radio_finishRx;
 	// Platform dependent? 
-	msg.context = (void*)len;
-	spi_message_add_tail(&tsfer, &msg);
+	rx_msg.context = (void*)len;
+	spi_message_add_tail(&rx_tsfer, &rx_msg);
 
-	status = spi_async(state.spi_device, &msg);  
+	status = spi_async(state.spi_device, &rx_msg);  
 }
 
 static void cc2520_radio_finishRx(void *arg)
@@ -568,14 +632,17 @@ static void cc2520_radio_finishRx(void *arg)
 	rx_buf_r[0] = len;
 
 	// Make sure to ignore the command return byte.
-	memcpy(rx_buf_r + 1, rx_buf + 1, len);
-	cc2520_radio_unlock();
+	memcpy(rx_buf_r + 1, rx_in_buf + 1, len);
 
 	// Pass length of entire buffer to
 	// upper layers. 
 	radio_top->rx_done(rx_buf_r, len + 1);
 	spin_unlock(&rx_buf_sl);
 
+	spin_lock(&pending_rx_sl);
+	pending_rx--;
+	spin_unlock(&pending_rx_sl);
+	
 	DBG((KERN_INFO "[cc2520] - Read %d bytes from radio.\n", len));
 }
 
