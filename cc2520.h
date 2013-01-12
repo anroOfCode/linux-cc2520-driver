@@ -69,13 +69,19 @@
 #define CC2520_DEF_PAN 0x22
 #define CC2520_DEF_SHORT_ADDR 0x01
 #define CC2520_DEF_EXT_ADDR 0x01
-#define CC2520_DEF_ACK_TIMEOUT 2500
+
+// All these timing parameters are in microseconds.
+#define CC2520_DEF_ACK_TIMEOUT 2500 
+#define CC2520_DEF_MIN_BACKOFF 320
+#define CC2520_DEF_INIT_BACKOFF 4960
+#define CC2520_DEF_CONG_BACKOFF 2240
 
 // Error codes
 #define CC2520_TX_SUCCESS 0
 #define CC2520_TX_BUSY 1
 #define CC2520_TX_LENGTH 2
 #define CC2520_TX_ACK_TIMEOUT 3
+#define CC2520_TX_FAILED 4
 
 // XOSC Period in nanoseconds.
 #define CC2520_XOSC_PERIOD 31

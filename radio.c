@@ -567,7 +567,7 @@ static void cc2520_radio_completeFlushTx(void *arg)
 {
 	cc2520_radio_unlock();
 	DBG((KERN_INFO "[cc2520] - write op complete.\n"));
-	radio_top->tx_done(CC2520_TX_BUSY);		
+	radio_top->tx_done(-CC2520_TX_FAILED);		
 }
 
 static void cc2520_radio_completeTx()
