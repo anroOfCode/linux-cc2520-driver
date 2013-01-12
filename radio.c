@@ -536,7 +536,7 @@ static void cc2520_radio_continueTx_check(void *arg)
 	tsfer4.rx_buf = rx_buf + buf_offset;
 	tsfer4.len = 0;
 	tsfer4.cs_change = 1;
-	tx_buf[buf_offset + tsfer4.len++] = CC2520_CMD_REGISTER_READ & CC2520_EXCFLAG0;
+	tx_buf[buf_offset + tsfer4.len++] = CC2520_CMD_REGISTER_READ | CC2520_EXCFLAG0;
 	tx_buf[buf_offset + tsfer4.len++] = 0;
 
 	spi_message_init(&msg);
@@ -548,6 +548,8 @@ static void cc2520_radio_continueTx_check(void *arg)
 
 	if (tx_buf_r_len > 3)
 		spi_message_add_tail(&tsfer3, &msg);
+
+	spi_message_add_tail(&tsfer4, &msg);
 
 	status = spi_async(state.spi_device, &msg); 	
 }
@@ -577,6 +579,8 @@ static void cc2520_radio_flushTx()
 	tsfer1.len = 0;
 	tsfer1.cs_change = 1;
 	tx_buf[tsfer1.len++] = CC2520_CMD_SFLUSHTX;
+	tx_buf[tsfer1.len++] = CC2520_CMD_REGISTER_WRITE | CC2520_EXCFLAG0;
+	tx_buf[tsfer1.len++] = 0;
 
 	spi_message_init(&msg);
 	msg.complete = cc2520_radio_completeFlushTx;
@@ -665,7 +669,7 @@ static void cc2520_radio_flushRx()
 	int status;
 
 	INFO((KERN_INFO "[cc2520] - oversized packet received. clearing.\n"));
-	
+
 	tsfer1.tx_buf = tx_buf;
 	tsfer1.rx_buf = rx_buf;
 	tsfer1.len = 0;
