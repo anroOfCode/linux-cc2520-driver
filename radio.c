@@ -100,35 +100,11 @@ void cc2520_radio_lock(int state)
 	spin_unlock(&radio_sl);
 }
 
-int cc2520_radio_try_lock(int state)
-{
-	spin_lock(&radio_sl);
-	if (radio_state != CC2520_RADIO_STATE_IDLE) {
-		spin_unlock(&radio_sl);
-		return -1;
-	}
-	radio_state = state;
-	spin_unlock(&radio_sl);
-	return 0;
-}
-
 void cc2520_radio_unlock(void)
 {
 	spin_lock(&radio_sl);
 	radio_state = CC2520_RADIO_STATE_IDLE;
 	spin_unlock(&radio_sl);
-}
-
-int cc2520_radio_idle_lock(int state)
-{
-	spin_lock(&radio_sl);
-	if (radio_state == CC2520_RADIO_STATE_IDLE) {
-		radio_state = state;
-		spin_unlock(&radio_sl);
-		return 1;
-	}
-	spin_unlock(&radio_sl);
-	return 0;
 }
 
 int cc2520_radio_tx_unlock_spi(void)
@@ -163,15 +139,6 @@ int cc2520_radio_tx_unlock_sfd(void)
 	}
 	spin_unlock(&radio_sl);
 	return 0;
-}
-
-int cc2520_radio_lock_status(void)
-{
-	int status;
-	spin_lock(&radio_sl);
-	status = radio_state;
-	spin_unlock(&radio_sl);
-	return status;
 }
 
 //////////////////////////////
@@ -349,6 +316,11 @@ void cc2520_radio_off()
 //////////////////////////////
 // Configuration Commands
 /////////////////////////////
+
+bool cc2520_radio_is_clear()
+{
+	return gpio_get_value(CC2520_CCA) == 1;
+}
 
 void cc2520_radio_set_channel(int channel)
 {
