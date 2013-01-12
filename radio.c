@@ -47,7 +47,7 @@ static u64 sfd_nanos_ts;
 static spinlock_t radio_sl;
 
 static spinlock_t pending_rx_sl;
-static int pending_rx;
+static bool pending_rx;
 
 static spinlock_t rx_buf_sl;
 
@@ -341,12 +341,6 @@ void cc2520_radio_off()
 	cc2520_radio_unlock();
 }
 
-// legacy, remove soon.
-static void spike_completion_handler(void *arg)
-{   
-	printk(KERN_INFO "Spi Callback complete.");
-}
-
 //////////////////////////////
 // Configuration Commands
 /////////////////////////////
@@ -393,6 +387,7 @@ void cc2520_radio_set_txpower(u8 power)
 
 	cc2520_radio_writeRegister(CC2520_TXPOWER, txpower.value);
 }
+
 //////////////////////////////
 // Callback Hooks
 /////////////////////////////
@@ -423,7 +418,7 @@ void cc2520_radio_fifop_occurred()
 		spin_unlock(&pending_rx_sl);
 	}
 	else {
-		pending_rx++;
+		pending_rx = true;
 		spin_unlock(&pending_rx_sl);
 		cc2520_radio_beginRx();
 	}	
@@ -431,7 +426,7 @@ void cc2520_radio_fifop_occurred()
 
 void cc2520_radio_reset(void)
 {
-
+	// TODO.
 }
 
 //////////////////////////////
@@ -462,9 +457,9 @@ static int cc2520_radio_tx(u8 *buf, u8 len)
 	return 0;
 }
 
+// Tx Part 1: Turn off the RF engine.
 static void cc2520_radio_beginTx()
 {
-	// TODO: Check for CCA flag, return EBUSY if busy.
 	int status;
 
 	tsfer1.tx_buf = tx_buf;
@@ -482,9 +477,10 @@ static void cc2520_radio_beginTx()
 	status = spi_async(state.spi_device, &msg); 
 }
 
+// Tx Part 2: Check for missed RX transmission
+// and flush the buffer, actually write the data.
 static void cc2520_radio_continueTx_check(void *arg)
 {
-	// TODO: Check for CCA flag, return EBUSY if busy.
 	int status;
 	int buf_offset;
 	int i;
@@ -639,8 +635,9 @@ static void cc2520_radio_finishRx(void *arg)
 	radio_top->rx_done(rx_buf_r, len + 1);
 	spin_unlock(&rx_buf_sl);
 
+	// Allow for subsequent FIFOP
 	spin_lock(&pending_rx_sl);
-	pending_rx--;
+	pending_rx = false;
 	spin_unlock(&pending_rx_sl);
 	
 	DBG((KERN_INFO "[cc2520] - Read %d bytes from radio.\n", len));
@@ -656,7 +653,10 @@ static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len)
 	int status;
 	int i;
 
+	tsfer.tx_buf = tx_buf;
+	tsfer.rx_buf = rx_buf;
 	tsfer.len = 0;
+
 	tx_buf[tsfer.len++] = CC2520_CMD_MEMORY_WRITE | ((mem_addr >> 8) & 0xFF);
 	tx_buf[tsfer.len++] = mem_addr & 0xFF;
 
@@ -667,7 +667,6 @@ static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len)
 	memset(rx_buf, 0, SPI_BUFF_SIZE);
 
 	spi_message_init(&msg);
-	msg.complete = spike_completion_handler;
 	msg.context = NULL;
 	spi_message_add_tail(&tsfer, &msg);
 
@@ -695,7 +694,6 @@ static void cc2520_radio_writeRegister(u8 reg, u8 value)
 	memset(rx_buf, 0, SPI_BUFF_SIZE);
 
 	spi_message_init(&msg);
-	msg.complete = spike_completion_handler;
 	msg.context = NULL;
 	spi_message_add_tail(&tsfer, &msg);
 
@@ -707,13 +705,16 @@ static cc2520_status_t cc2520_radio_strobe(u8 cmd)
 	int status;
 	cc2520_status_t ret;
 
+	tsfer.tx_buf = tx_buf;
+	tsfer.rx_buf = rx_buf;
+	tsfer.len = 0;
+
 	tx_buf[0] = cmd;
 	tsfer.len = 1;
 
 	memset(rx_buf, 0, SPI_BUFF_SIZE);
 
 	spi_message_init(&msg);
-	msg.complete = spike_completion_handler;
 	msg.context = NULL;
 	spi_message_add_tail(&tsfer, &msg);    
 

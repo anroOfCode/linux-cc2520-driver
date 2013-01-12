@@ -52,6 +52,23 @@ wget https://raw.github.com/msperl/linux/73afedc07e3b94d8b9d588912faf26081178d26
 mv spi-bcm2708.c linux/drivers/spi
 ```
 
+And patch a small part of the device configuration to let the SPI driver know
+where it can find DMA-accessible memory. Open file
+<code>arch/arm/mach-bcm2708/bcm2708.c</code> and scroll to line 582. Update
+the struct to look like this:
+
+```
+static struct platform_device bcm2708_spi_device = {
+  .name = "bcm2708_spi",
+  .id = 0,
+  .num_resources = ARRAY_SIZE(bcm2708_spi_resources),
+  .resource = bcm2708_spi_resources,
+  .dev = {
+    .coherent_dma_mask = DMA_BIT_MASK(DMA_MASK_BITS_COMMON),
+  },
+};
+```
+
 I patched a small part of this driver to desert the chip-select line. Find the following lines 
 in spi-bcm-2708.c and replace them.
 
