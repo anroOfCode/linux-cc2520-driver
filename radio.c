@@ -28,6 +28,7 @@ static struct spi_transfer tsfer;
 static struct spi_transfer tsfer1;
 static struct spi_transfer tsfer2;
 static struct spi_transfer tsfer3;
+static struct spi_transfer tsfer4;
 
 static struct spi_message rx_msg;
 static struct spi_transfer rx_tsfer;
@@ -77,6 +78,10 @@ static void cc2520_radio_continueTx_check(void *arg);
 static void cc2520_radio_continueTx(void *arg);
 static void cc2520_radio_completeTx(void);
 
+static void cc2520_radio_flushRx(void);
+static void cc2520_radio_completeFlushRx(void *arg);
+static void cc2520_radio_flushTx(void);
+static void cc2520_radio_completeFlushTx(void *arg);
 
 struct cc2520_interface *radio_top;
 
@@ -522,9 +527,17 @@ static void cc2520_radio_continueTx_check(void *arg)
 		tsfer3.cs_change = 1;
 		tx_buf[buf_offset + tsfer3.len++] = CC2520_CMD_TXBUF;
 		for (i = 3; i < tx_buf_r_len; i++)
-			tx_buf[buf_offset + tsfer3.len++] = tx_buf_r[i];		
+			tx_buf[buf_offset + tsfer3.len++] = tx_buf_r[i];	
+
+		buf_offset += tsfer3.len;	
 	}
 
+	tsfer4.tx_buf = tx_buf + buf_offset;
+	tsfer4.rx_buf = rx_buf + buf_offset;
+	tsfer4.len = 0;
+	tsfer4.cs_change = 1;
+	tx_buf[buf_offset + tsfer4.len++] = CC2520_CMD_REGISTER_READ & CC2520_EXCFLAG0;
+	tx_buf[buf_offset + tsfer4.len++] = 0;
 
 	spi_message_init(&msg);
 	msg.complete = cc2520_radio_continueTx;
@@ -540,22 +553,52 @@ static void cc2520_radio_continueTx_check(void *arg)
 }
 
 static void cc2520_radio_continueTx(void *arg)
-{   
+{   	
 	DBG((KERN_INFO "[cc2520] - tx spi write callback complete.\n"));
 
-	// To prevent race conditions between the SPI engine and the
-	// SFD interrupt we unlock in two stages. If this is the last
-	// thing to complete we signal TX complete. 
-	if (cc2520_radio_tx_unlock_spi()) {
+	if ((((u8*)tsfer4.rx_buf)[1] & CC2520_TX_UNDERFLOW) > 0) {
+		cc2520_radio_flushTx();		
+	}
+	else if (cc2520_radio_tx_unlock_spi()) {
+		// To prevent race conditions between the SPI engine and the
+		// SFD interrupt we unlock in two stages. If this is the last
+		// thing to complete we signal TX complete. 
 		cc2520_radio_completeTx();
 	}
+}
+
+static void cc2520_radio_flushTx()
+{
+	int status;
+	INFO((KERN_INFO "[cc2520] - tx underrun occurred.\n"));
+
+	tsfer1.tx_buf = tx_buf;
+	tsfer1.rx_buf = rx_buf;
+	tsfer1.len = 0;
+	tsfer1.cs_change = 1;
+	tx_buf[tsfer1.len++] = CC2520_CMD_SFLUSHTX;
+
+	spi_message_init(&msg);
+	msg.complete = cc2520_radio_completeFlushTx;
+	msg.context = NULL;
+
+	spi_message_add_tail(&tsfer1, &msg);
+
+	status = spi_async(state.spi_device, &msg); 
+}
+
+static void cc2520_radio_completeFlushTx(void *arg)
+{
+	cc2520_radio_unlock();
+	DBG((KERN_INFO "[cc2520] - write op complete.\n"));
+	radio_top->tx_done(CC2520_TX_BUSY);		
 }
 
 static void cc2520_radio_completeTx()
 {
 	cc2520_radio_unlock();
 	DBG((KERN_INFO "[cc2520] - write op complete.\n"));
-	radio_top->tx_done(0);		
+	radio_top->tx_done(CC2520_TX_SUCCESS);		
 }
 
 //////////////////////////////
@@ -588,27 +631,62 @@ static void cc2520_radio_continueRx(void *arg)
 {
 	int status;
 	int i;
+	int len;
+
 	// Length of what we're reading is stored
 	// in the received spi buffer, read from the
 	// async operation called in beginRxRead.
-	int len;
-
 	len = rx_in_buf[1];
 
-	rx_tsfer.len = 0;
-	rx_out_buf[rx_tsfer.len++] = CC2520_CMD_RXBUF;
-	for (i = 0; i < len; i++) 
-		rx_out_buf[rx_tsfer.len++] = 0;
+	if (len > 127) {
+		cc2520_radio_flushRx();
+	}
+	else {
+		rx_tsfer.len = 0;
+		rx_out_buf[rx_tsfer.len++] = CC2520_CMD_RXBUF;
+		for (i = 0; i < len; i++) 
+			rx_out_buf[rx_tsfer.len++] = 0;
 
-	rx_tsfer.cs_change = 1;
+		rx_tsfer.cs_change = 1;
 
-	spi_message_init(&rx_msg);
-	rx_msg.complete = cc2520_radio_finishRx;
-	// Platform dependent? 
-	rx_msg.context = (void*)len;
-	spi_message_add_tail(&rx_tsfer, &rx_msg);
+		spi_message_init(&rx_msg);
+		rx_msg.complete = cc2520_radio_finishRx;
+		// Platform dependent? 
+		rx_msg.context = (void*)len;
+		spi_message_add_tail(&rx_tsfer, &rx_msg);
 
-	status = spi_async(state.spi_device, &rx_msg);  
+		status = spi_async(state.spi_device, &rx_msg);  
+	}
+}
+
+static void cc2520_radio_flushRx()
+{
+
+	int status;
+
+	INFO((KERN_INFO "[cc2520] - oversized packet received. clearing.\n"));
+	
+	tsfer1.tx_buf = tx_buf;
+	tsfer1.rx_buf = rx_buf;
+	tsfer1.len = 0;
+	tsfer1.cs_change = 1;
+	tx_buf[tsfer1.len++] = CC2520_CMD_SFLUSHRX;
+
+	spi_message_init(&msg);
+	msg.complete = cc2520_radio_completeFlushRx;
+	msg.context = NULL;
+
+	spi_message_add_tail(&tsfer1, &msg);
+
+	status = spi_async(state.spi_device, &msg); 
+}
+
+static void cc2520_radio_completeFlushRx(void *arg)
+{
+
+	spin_lock(&pending_rx_sl);
+	pending_rx = false;
+	spin_unlock(&pending_rx_sl);
 }
 
 static void cc2520_radio_finishRx(void *arg)

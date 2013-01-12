@@ -80,6 +80,7 @@
 // XOSC Period in nanoseconds.
 #define CC2520_XOSC_PERIOD 31
 
+#define CC2520_TX_UNDERFLOW (1<<3)
 //////////////////////////////
 // Structs and definitions
 /////////////////////////////
