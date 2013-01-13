@@ -105,10 +105,10 @@ static ssize_t interface_write(
 	// wait for an asynchronous callback to occur in
 	// the form of a semaphore. 
 	interface_bottom->tx(tx_buf_c, pkt_len);
-	result = down_interruptible(&tx_done_sem);
-	if (result) {
-		return -ERESTARTSYS;
-	}
+	down(&tx_done_sem);
+	//if (result) {
+	//	return -ERESTARTSYS;
+	//}
 		
 	// Step 4: Finally return and allow other callers to write
 	// packets. 
