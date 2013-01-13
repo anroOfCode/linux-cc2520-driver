@@ -16,6 +16,7 @@
 #include "interface.h"
 #include "sack.h"
 #include "csma.h"
+#include "unique.h"
 
 #define DRIVER_AUTHOR "Andrew Robinson <androbin@umich.edu>"
 #define DRIVER_DESC   "A driver for the CC2520 radio. Be afraid."
@@ -23,7 +24,8 @@
 struct cc2520_state state;
 const char cc2520_name[] = "cc2520";
 
-struct cc2520_interface interface_to_lpl;
+struct cc2520_interface interface_to_unique;
+struct cc2520_interface unique_to_lpl;
 struct cc2520_interface lpl_to_csma;
 struct cc2520_interface csma_to_sack;
 struct cc2520_interface sack_to_radio;
@@ -36,8 +38,10 @@ void setup_bindings(void)
 	csma_bottom = &csma_to_sack;
 	csma_top = &lpl_to_csma;
 	lpl_bottom = &lpl_to_csma;
-	lpl_top = &interface_to_lpl;
-	interface_bottom = &interface_to_lpl;
+	lpl_top = &unique_to_lpl;
+	unique_bottom = &unique_to_lpl;
+	unique_top = &interface_to_unique;
+	interface_bottom = &interface_to_unique;
 }
 
 int init_module()
@@ -92,10 +96,18 @@ int init_module()
 		goto error1;
 	}
 
+	err = cc2520_unique_init();
+	if (err) {
+		ERR((KERN_ALERT "[cc2520] - unique init error. aborting.\n"));
+		goto error0;
+	}
+
 	state.wq = create_singlethread_workqueue(cc2520_name);
 
 	return 0;
 
+	error0:
+		cc2520_csma_free();
 	error1:
 		cc2520_sack_free();
 	error2:
