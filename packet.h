@@ -9,7 +9,7 @@ typedef u16 ieee154_panid_t;
 typedef struct cc2520_header_t
 {
 	u8 length;
-} cc2520_header_t;
+}__attribute__((packed))  cc2520_header_t;
 
 typedef struct ieee154_simple_header_t
 {
@@ -18,14 +18,14 @@ typedef struct ieee154_simple_header_t
 	u16 destpan;
 	u16 dest;
 	u16 src;
-} ieee154_simple_header_t;
+}__attribute__((packed)) ieee154_simple_header_t;
 
 
 typedef struct cc2520packet_header_t
 {
 	cc2520_header_t cc2520;
 	ieee154_simple_header_t ieee154;
-} cc2520packet_header_t;
+}__attribute__((packed))  cc2520packet_header_t;
 
 enum {
 	IEEE154_BROADCAST_ADDR = 0xffff,
@@ -37,7 +37,7 @@ struct ieee154_frame_addr {
 	ieee154_addr_t  ieee_src;
 	ieee154_addr_t  ieee_dst;
 	ieee154_panid_t ieee_dstpan;
-};
+}__attribute__((packed));
 
 enum ieee154_fcf_enums {
 	IEEE154_FCF_FRAME_TYPE = 0,
