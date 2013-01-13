@@ -89,7 +89,7 @@ static ssize_t interface_write(
 	else {
 		result = down_interruptible(&tx_sem);
 		if (result)
-			return -ERESTARTSYS;
+			return -ERESTARTSYS;	
 	}
 	DBG((KERN_INFO "[cc2520] - write lock obtained.\n"));
 
@@ -106,9 +106,10 @@ static ssize_t interface_write(
 	// the form of a semaphore. 
 	interface_bottom->tx(tx_buf_c, pkt_len);
 	result = down_interruptible(&tx_done_sem);
-	if (result)
+	if (result) {
 		return -ERESTARTSYS;
-
+	}
+		
 	// Step 4: Finally return and allow other callers to write
 	// packets. 
 	DBG((KERN_INFO "[cc2520] - wrote %d bytes.\n", pkt_len));

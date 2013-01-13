@@ -76,6 +76,11 @@
 #define CC2520_DEF_INIT_BACKOFF 4960
 #define CC2520_DEF_CONG_BACKOFF 2240
 
+// We go for around a 1% duty cycle of the radio
+// for LPL stuff. 
+#define CC2520_DEF_LPL_WAKEUP_INTERVAL 512000
+#define CC2520_DEF_LPL_LISTEN_WINDOW 5120
+
 // Error codes
 #define CC2520_TX_SUCCESS 0
 #define CC2520_TX_BUSY 1

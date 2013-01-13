@@ -47,6 +47,7 @@ int cc2520_csma_init()
 	backoff_max_init = CC2520_DEF_INIT_BACKOFF;
 	backoff_max_cong = CC2520_DEF_CONG_BACKOFF;
 
+	spin_lock_init(&state_sl);
 	csma_state = CC2520_CSMA_IDLE;
 
 	cur_tx_buf = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
@@ -97,10 +98,10 @@ static void cc2520_csma_start_timer(int us_period)
 
 static enum hrtimer_restart cc2520_csma_timer_cb(struct hrtimer *timer)
 {
-    ktime_t kt;
-    int new_backoff;
+	ktime_t kt;
+	int new_backoff;
 
-    //printk(KERN_INFO "[cc2520] - csma timer fired. \n");
+	//printk(KERN_INFO "[cc2520] - csma timer fired. \n");
 	if (cc2520_radio_is_clear()) {
 		//printk(KERN_INFO "[cc2520] - channel clear, sending.\n");
 		csma_bottom->tx(cur_tx_buf, cur_tx_len);
