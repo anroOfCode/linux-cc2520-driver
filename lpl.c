@@ -122,7 +122,7 @@ static void cc2520_lpl_tx_done(u8 status)
 			}
 			else {
 				spin_unlock(&state_sl);
-				printk(KERN_INFO "[cc2520] - lpl retransmit.\n");
+				//printk(KERN_INFO "[cc2520] - lpl retransmit.\n");
 				lpl_bottom->tx(cur_tx_buf, cur_tx_len);
 			}
 		}
