@@ -151,7 +151,7 @@ static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id)
     nanos = timespec_to_ns(&ts);
     gpio_val = gpio_get_value(CC2520_SFD);
 
-    DBG((KERN_INFO "[cc2520] - sfd interrupt occurred at %lld, %d\n", (long long int)nanos, gpio_val));
+    //DBG((KERN_INFO "[cc2520] - sfd interrupt occurred at %lld, %d\n", (long long int)nanos, gpio_val));
 
     cc2520_radio_sfd_occurred(nanos, gpio_val);
     return IRQ_HANDLED;
@@ -207,7 +207,6 @@ int cc2520_plat_gpio_init()
         goto fail;
 
     gpio_set_value(CC2520_DEBUG_0, 0);
-    gpio_set_value(CC2520_DEBUG_1, 0);
 
     // Setup FIFOP Interrupt
     irq = gpio_to_irq(CC2520_FIFOP);

@@ -3,6 +3,7 @@
 #include <linux/hrtimer.h>
 #include <linux/spinlock.h>
 #include <linux/random.h>
+#include <linux/workqueue.h>
 
 #include "csma.h"
 #include "cc2520.h"
@@ -22,6 +23,9 @@ static u8 cur_tx_len;
 
 static spinlock_t state_sl;
 
+static struct workqueue_struct *wq;
+static struct work_struct work;
+
 enum cc2520_csma_state_enum {
 	CC2520_CSMA_IDLE,
 	CC2520_CSMA_TX,
@@ -30,12 +34,15 @@ enum cc2520_csma_state_enum {
 
 static int csma_state;
 
+static unsigned long flags;
+
 static int cc2520_csma_tx(u8 * buf, u8 len);
 static void cc2520_csma_tx_done(u8 status);
 static void cc2520_csma_rx_done(u8 *buf, u8 len);
 static enum hrtimer_restart cc2520_csma_timer_cb(struct hrtimer *timer);
 static void cc2520_csma_start_timer(int us_period);
 static int cc2520_csma_get_backoff(int min, int max);
+static void cc2520_csma_wq(struct work_struct *work);
 
 int cc2520_csma_init()
 {
@@ -55,6 +62,11 @@ int cc2520_csma_init()
 		goto error;
 	}
 
+	wq = alloc_workqueue("csma_wq", WQ_HIGHPRI, 128);
+	if (!wq) {
+		goto error;
+	}
+
 	hrtimer_init(&backoff_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	backoff_timer.function = &cc2520_csma_timer_cb;
 
@@ -66,6 +78,10 @@ int cc2520_csma_init()
 			cur_tx_buf = NULL;
 		}
 
+		if (wq) {
+			destroy_workqueue(wq);
+		}
+
 		return -EFAULT;
 }
 
@@ -74,6 +90,10 @@ void cc2520_csma_free()
 	if (cur_tx_buf) {
 		kfree(cur_tx_buf);
 		cur_tx_buf = NULL;
+	}
+
+	if (wq) {
+		destroy_workqueue(wq);
 	}
 
 	hrtimer_cancel(&backoff_timer);
@@ -101,56 +121,67 @@ static enum hrtimer_restart cc2520_csma_timer_cb(struct hrtimer *timer)
 	ktime_t kt;
 	int new_backoff;
 
-	//printk(KERN_INFO "[cc2520] - csma timer fired. \n");
 	if (cc2520_radio_is_clear()) {
-		//printk(KERN_INFO "[cc2520] - channel clear, sending.\n");
-		csma_bottom->tx(cur_tx_buf, cur_tx_len);
+		// NOTE: We can absolutely not send from
+		// interrupt context, there's a few places
+		// where we spin lock and assume we can be
+		// preempted. If we're running in atomic mode
+		// that promise is broken. We use a work queue. 
+
+		// The workqueue adds about 30uS of latency. 
+		INIT_WORK(&work, cc2520_csma_wq);
+		queue_work(wq, &work);
 		return HRTIMER_NORESTART;		
 	}
 	else {
-		spin_lock(&state_sl);
+		spin_lock_irqsave(&state_sl, flags);
 		if (csma_state == CC2520_CSMA_TX) {
 			csma_state = CC2520_CSMA_CONG;
-			spin_unlock(&state_sl);
+			spin_unlock_irqrestore(&state_sl, flags);
 
 			new_backoff = 
 				cc2520_csma_get_backoff(backoff_min, backoff_max_cong);
 
 			INFO((KERN_INFO "[cc2520] - channel still busy, waiting %d uS\n", new_backoff));
-			kt=ktime_set(0,1000 * new_backoff);
+			kt = ktime_set(0,1000 * new_backoff);
 			hrtimer_forward_now(&backoff_timer, kt);
 			return HRTIMER_RESTART;
 		}
 		else {
 			csma_state = CC2520_CSMA_IDLE;
-			spin_unlock(&state_sl);
+			spin_unlock_irqrestore(&state_sl, flags);
 
-			INFO((KERN_INFO "[cc2520] - csma/ca: channel busy. aborting tx\n"));
 			csma_top->tx_done(-CC2520_TX_BUSY);
 			return HRTIMER_NORESTART;
 		}
 	}
 }
 
+static void cc2520_csma_wq(struct work_struct *work)
+{
+	csma_bottom->tx(cur_tx_buf, cur_tx_len);
+}
+
 static int cc2520_csma_tx(u8 * buf, u8 len)
 {
 	int backoff;
 
-	spin_lock(&state_sl);
+	spin_lock_irqsave(&state_sl, flags);
 	if (csma_state == CC2520_CSMA_IDLE) {
 		csma_state = CC2520_CSMA_TX;
-		spin_unlock(&state_sl);
+		spin_unlock_irqrestore(&state_sl, flags);
 
 		memcpy(cur_tx_buf, buf, len);
 		cur_tx_len = len;
 
 		backoff = cc2520_csma_get_backoff(backoff_min, backoff_max_init);
 
-		//printk(KERN_INFO "[cc2520] - waiting %d uS to send.\n", backoff);
+		DBG((KERN_INFO "[cc2520] - waiting %d uS to send.\n", backoff));
 		cc2520_csma_start_timer(backoff);
 	}
 	else {
-		spin_unlock(&state_sl);
+		spin_unlock_irqrestore(&state_sl, flags);
+		DBG((KERN_INFO "[cc2520] - csma layer busy.\n"));
 		csma_top->tx_done(-CC2520_TX_BUSY);
 	}
 
@@ -159,10 +190,10 @@ static int cc2520_csma_tx(u8 * buf, u8 len)
 
 static void cc2520_csma_tx_done(u8 status)
 {
-	spin_lock(&state_sl);
+	spin_lock_irqsave(&state_sl, flags);
 	csma_state = CC2520_CSMA_IDLE;
-	spin_unlock(&state_sl);
-	//printk(KERN_INFO "[cc2520] - tx done and successful.\n");
+	spin_unlock_irqrestore(&state_sl, flags);
+
 	csma_top->tx_done(status);
 }
 

@@ -54,6 +54,9 @@ static spinlock_t rx_buf_sl;
 
 static int radio_state;
 
+static unsigned long flags;
+static unsigned long flags1;
+
 enum cc2520_radio_state_enum {
     CC2520_RADIO_STATE_IDLE,
     CC2520_RADIO_STATE_TX,
@@ -91,53 +94,53 @@ struct cc2520_interface *radio_top;
 
 void cc2520_radio_lock(int state)
 {
-	spin_lock(&radio_sl);
+	spin_lock_irqsave(&radio_sl, flags1);
 	while (radio_state != CC2520_RADIO_STATE_IDLE) {
-		spin_unlock(&radio_sl);
-		spin_lock(&radio_sl);
+		spin_unlock_irqrestore(&radio_sl, flags1);
+		spin_lock_irqsave(&radio_sl, flags1);
 	}
 	radio_state = state;
-	spin_unlock(&radio_sl);
+	spin_unlock_irqrestore(&radio_sl, flags1);
 }
 
 void cc2520_radio_unlock(void)
 {
-	spin_lock(&radio_sl);
+	spin_lock_irqsave(&radio_sl, flags1);
 	radio_state = CC2520_RADIO_STATE_IDLE;
-	spin_unlock(&radio_sl);
+	spin_unlock_irqrestore(&radio_sl, flags1);
 }
 
 int cc2520_radio_tx_unlock_spi(void)
 {
-	spin_lock(&radio_sl);
+	spin_lock_irqsave(&radio_sl, flags1);
 	if (radio_state == CC2520_RADIO_STATE_TX) {
 		radio_state = CC2520_RADIO_STATE_TX_SPI_DONE;
-		spin_unlock(&radio_sl);
+		spin_unlock_irqrestore(&radio_sl, flags1);
 		return 0;
 	}
 	else if (radio_state == CC2520_RADIO_STATE_TX_SFD_DONE) {
 		radio_state = CC2520_RADIO_STATE_TX_2_RX;
-		spin_unlock(&radio_sl);
+		spin_unlock_irqrestore(&radio_sl, flags1);
 		return 1;
 	}
-	spin_unlock(&radio_sl);
+	spin_unlock_irqrestore(&radio_sl, flags1);
 	return 0;
 }
 
 int cc2520_radio_tx_unlock_sfd(void)
 {
-	spin_lock(&radio_sl);
+	spin_lock_irqsave(&radio_sl, flags1);
 	if (radio_state == CC2520_RADIO_STATE_TX) {
 		radio_state = CC2520_RADIO_STATE_TX_SFD_DONE;
-		spin_unlock(&radio_sl);
+		spin_unlock_irqrestore(&radio_sl, flags1);
 		return 0;
 	}
 	else if (radio_state == CC2520_RADIO_STATE_TX_SPI_DONE) {
 		radio_state = CC2520_RADIO_STATE_TX_2_RX;
-		spin_unlock(&radio_sl);
+		spin_unlock_irqrestore(&radio_sl, flags1);
 		return 1;
 	}
-	spin_unlock(&radio_sl);
+	spin_unlock_irqrestore(&radio_sl, flags1);
 	return 0;
 }
 
@@ -389,14 +392,14 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 void cc2520_radio_fifop_occurred()
 {
 
-	spin_lock(&pending_rx_sl);
+	spin_lock_irqsave(&pending_rx_sl, flags);;
 
-	if (pending_rx > 0) {
-		spin_unlock(&pending_rx_sl);
+	if (pending_rx) {
+		spin_unlock_irqrestore(&pending_rx_sl, flags);;
 	}
 	else {
 		pending_rx = true;
-		spin_unlock(&pending_rx_sl);
+		spin_unlock_irqrestore(&pending_rx_sl, flags);;
 		cc2520_radio_beginRx();
 	}	
 }
@@ -642,27 +645,26 @@ static void cc2520_radio_flushRx()
 
 	INFO((KERN_INFO "[cc2520] - oversized packet received. clearing.\n"));
 
-	tsfer1.tx_buf = tx_buf;
-	tsfer1.rx_buf = rx_buf;
-	tsfer1.len = 0;
-	tsfer1.cs_change = 1;
-	tx_buf[tsfer1.len++] = CC2520_CMD_SFLUSHRX;
+	//tsfer1.tx_buf = tx_buf;
+	//tsfer1.rx_buf = rx_buf;
+	rx_tsfer.len = 0;
+	rx_tsfer.cs_change = 1;
+	rx_out_buf[rx_tsfer.len++] = CC2520_CMD_SFLUSHRX;
 
-	spi_message_init(&msg);
-	msg.complete = cc2520_radio_completeFlushRx;
-	msg.context = NULL;
+	spi_message_init(&rx_msg);
+	rx_msg.complete = cc2520_radio_completeFlushRx;
+	rx_msg.context = NULL;
 
-	spi_message_add_tail(&tsfer1, &msg);
+	spi_message_add_tail(&rx_tsfer, &rx_msg);
 
-	status = spi_async(state.spi_device, &msg); 
+	status = spi_async(state.spi_device, &rx_msg); 
 }
 
 static void cc2520_radio_completeFlushRx(void *arg)
 {
-
-	spin_lock(&pending_rx_sl);
+	spin_lock_irqsave(&pending_rx_sl, flags);
 	pending_rx = false;
-	spin_unlock(&pending_rx_sl);
+	spin_unlock_irqrestore(&pending_rx_sl, flags);
 }
 
 static void cc2520_radio_finishRx(void *arg)
@@ -687,14 +689,18 @@ static void cc2520_radio_finishRx(void *arg)
 	// Pass length of entire buffer to
 	// upper layers. 
 	radio_top->rx_done(rx_buf_r, len + 1);
-	spin_unlock(&rx_buf_sl);
 
 	// Allow for subsequent FIFOP
-	spin_lock(&pending_rx_sl);
+	spin_lock_irqsave(&pending_rx_sl, flags);
 	pending_rx = false;
-	spin_unlock(&pending_rx_sl);
+	spin_unlock_irqrestore(&pending_rx_sl, flags);
 	
 	DBG((KERN_INFO "[cc2520] - Read %d bytes from radio.\n", len));
+}
+
+void cc2520_radio_release_rx()
+{
+	spin_unlock(&rx_buf_sl);
 }
 
 //////////////////////////////

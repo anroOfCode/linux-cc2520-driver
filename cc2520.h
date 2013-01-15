@@ -29,8 +29,8 @@
 #define CC2520_GPIO_5 -1
 #define CC2520_RESET 17
 
-#define CC2520_DEBUG_0 21
-#define CC2520_DEBUG_1 18
+#define CC2520_DEBUG_0 4
+#define CC2520_DEBUG_1 3
 
 // Logical mapping of CC2520 GPIO pins to
 // functions, we're going to keep these static

@@ -27,6 +27,8 @@ static u8 cur_tx_len;
 
 static spinlock_t state_sl;
 
+static unsigned long flags;
+
 enum cc2520_lpl_state_enum {
 	CC2520_LPL_IDLE,
 	CC2520_LPL_TX,
@@ -80,10 +82,10 @@ void cc2520_lpl_free()
 static int cc2520_lpl_tx(u8 * buf, u8 len)
 {
 	if (lpl_enabled) {
-		spin_lock(&state_sl);
+		spin_lock_irqsave(&state_sl, flags);
 		if (lpl_state == CC2520_LPL_IDLE) {
 			lpl_state = CC2520_LPL_TX;
-			spin_unlock(&state_sl);
+			spin_unlock_irqrestore(&state_sl, flags);
 
 			memcpy(cur_tx_buf, buf, len);
 			cur_tx_len = len;
@@ -92,7 +94,8 @@ static int cc2520_lpl_tx(u8 * buf, u8 len)
 			cc2520_lpl_start_timer();
 		}
 		else {
-			spin_unlock(&state_sl);
+			spin_unlock_irqrestore(&state_sl, flags);
+			INFO(("[cc2520] - lpl tx busy.\n"));
 			lpl_top->tx_done(-CC2520_TX_BUSY);
 		}
 
@@ -106,22 +109,22 @@ static int cc2520_lpl_tx(u8 * buf, u8 len)
 static void cc2520_lpl_tx_done(u8 status)
 {
 	if (lpl_enabled) {
-		spin_lock(&state_sl);
+		spin_lock_irqsave(&state_sl, flags);
 		if (cc2520_packet_requires_ack_wait(cur_tx_buf)) {
 			if (status == CC2520_TX_SUCCESS) {
 				lpl_state = CC2520_LPL_IDLE;
-				spin_unlock(&state_sl);
+				spin_unlock_irqrestore(&state_sl, flags);
 
 				hrtimer_cancel(&lpl_timer);
 				lpl_top->tx_done(status);
 			}
 			else if (lpl_state == CC2520_LPL_TIMER_EXPIRED) {
 				lpl_state = CC2520_LPL_IDLE;
-				spin_unlock(&state_sl);
+				spin_unlock_irqrestore(&state_sl, flags);
 				lpl_top->tx_done(-CC2520_TX_FAILED);
 			}
 			else {
-				spin_unlock(&state_sl);
+				spin_unlock_irqrestore(&state_sl, flags);
 				//printk(KERN_INFO "[cc2520] - lpl retransmit.\n");
 				lpl_bottom->tx(cur_tx_buf, cur_tx_len);
 			}
@@ -129,11 +132,11 @@ static void cc2520_lpl_tx_done(u8 status)
 		else {
 			if (lpl_state == CC2520_LPL_TIMER_EXPIRED) {
 				lpl_state = CC2520_LPL_IDLE;
-				spin_unlock(&state_sl);
+				spin_unlock_irqrestore(&state_sl, flags);
 				lpl_top->tx_done(CC2520_TX_SUCCESS);
 			}
 			else {
-				spin_unlock(&state_sl);
+				spin_unlock_irqrestore(&state_sl, flags);
 				lpl_bottom->tx(cur_tx_buf, cur_tx_len);
 			}			
 		}
@@ -161,13 +164,13 @@ static void cc2520_lpl_start_timer()
 
 static enum hrtimer_restart cc2520_lpl_timer_cb(struct hrtimer *timer)
 {
-	spin_lock(&state_sl);
+	spin_lock_irqsave(&state_sl, flags);
 	if (lpl_state == CC2520_LPL_TX) {
 		lpl_state = CC2520_LPL_TIMER_EXPIRED;
-		spin_unlock(&state_sl);
+		spin_unlock_irqrestore(&state_sl, flags);
 	}
 	else {
-		spin_unlock(&state_sl);
+		spin_unlock_irqrestore(&state_sl, flags);
 		INFO((KERN_INFO "[cc2520] - lpl timer in improbable state.\n"));
 	}
 

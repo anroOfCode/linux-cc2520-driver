@@ -106,15 +106,11 @@ static ssize_t interface_write(
 	// the form of a semaphore. 
 	interface_bottom->tx(tx_buf_c, pkt_len);
 	down(&tx_done_sem);
-	//if (result) {
-	//	return -ERESTARTSYS;
-	//}
 		
 	// Step 4: Finally return and allow other callers to write
 	// packets. 
 	DBG((KERN_INFO "[cc2520] - wrote %d bytes.\n", pkt_len));
 	up(&tx_sem);
-
 	return tx_result ? tx_result : pkt_len;
 
 	error:
