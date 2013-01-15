@@ -24,6 +24,19 @@ struct cc2520_set_ack_data {
 	u32 timeout;
 };
 
+struct cc2520_set_lpl_data {
+	u32 window;
+	u32 interval;
+	bool enabled;
+};
+
+struct cc2520_set_csma_data {
+	u32 min_backoff;
+	u32 init_backoff;
+	u32 cong_backoff;
+	bool enabled;
+};
+
 // Possible TX Powers:
 #define CC2520_TXPOWER_5DBM 0xF7
 #define CC2520_TXPOWER_3DBM 0xF2
@@ -46,3 +59,5 @@ struct cc2520_set_txpower_data {
 #define CC2520_IO_RADIO_SET_ADDRESS _IOW(BASE, 4, struct cc2520_set_address_data)
 #define CC2520_IO_RADIO_SET_TXPOWER _IOW(BASE, 5, struct cc2520_set_txpower_data)
 #define CC2520_IO_RADIO_SET_ACK _IOW(BASE, 6, struct cc2520_set_ack_data)
+#define CC2520_IO_RADIO_SET_LPL _IOW(BASE, 7, struct cc2520_set_lpl_data)
+#define CC2520_IO_RADIO_SET_CSMA _IOW(BASE, 8, struct cc2520_set_csma_data)

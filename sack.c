@@ -173,6 +173,16 @@ static void cc2520_sack_rx_done(u8 *buf, u8 len)
 	// an ACK, trasmit it.
 	memcpy(cur_rx_buf, buf, len);
 	cur_rx_buf_len = len;
+
+	// NOTE: this is a big hack right now,
+	// and I'm not sure if it's even needed.
+	// We introduce a strong coupling between
+	// the sack layer and the radio layer here
+	// by providing a mechanism to explicitly
+	// release the buffer. When I was troubleshooting
+	// a terrible concurrency bug I added this
+	// as a possible solution, but I don't
+	// think it's needed anymore. 
 	cc2520_radio_release_rx();
 
 	spin_lock_irqsave(&sack_sl, flags);

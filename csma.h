@@ -9,7 +9,9 @@ extern struct cc2520_interface *csma_bottom;
 int cc2520_csma_init(void);
 void cc2520_csma_free(void);
 
-void cc2520_csma_set_inital_backoff(int timeout);
-void cc2520_csma_set_congestion_backoff(int timeout);
+void cc2520_csma_set_enabled(bool enabled);
+void cc2520_csma_set_min_backoff(int timeout);
+void cc2520_csma_set_init_backoff(int timeout);
+void cc2520_csma_set_cong_backoff(int timeout);
 
 #endif

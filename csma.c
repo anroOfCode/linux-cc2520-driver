@@ -15,6 +15,7 @@ struct cc2520_interface *csma_bottom;
 static int backoff_min;
 static int backoff_max_init;
 static int backoff_max_cong;
+static bool csma_enabled;
 
 static struct hrtimer backoff_timer;
 
@@ -53,6 +54,7 @@ int cc2520_csma_init()
 	backoff_min = CC2520_DEF_MIN_BACKOFF;
 	backoff_max_init = CC2520_DEF_INIT_BACKOFF;
 	backoff_max_cong = CC2520_DEF_CONG_BACKOFF;
+	csma_enabled = CC2520_DEF_CSMA_ENABLED;
 
 	spin_lock_init(&state_sl);
 	csma_state = CC2520_CSMA_IDLE;
@@ -166,6 +168,10 @@ static int cc2520_csma_tx(u8 * buf, u8 len)
 {
 	int backoff;
 
+	if (!csma_enabled) {
+		return csma_bottom->tx(buf, len);
+	}
+
 	spin_lock_irqsave(&state_sl, flags);
 	if (csma_state == CC2520_CSMA_IDLE) {
 		csma_state = CC2520_CSMA_TX;
@@ -190,9 +196,11 @@ static int cc2520_csma_tx(u8 * buf, u8 len)
 
 static void cc2520_csma_tx_done(u8 status)
 {
-	spin_lock_irqsave(&state_sl, flags);
-	csma_state = CC2520_CSMA_IDLE;
-	spin_unlock_irqrestore(&state_sl, flags);
+	if (csma_enabled) {
+		spin_lock_irqsave(&state_sl, flags);
+		csma_state = CC2520_CSMA_IDLE;
+		spin_unlock_irqrestore(&state_sl, flags);
+	}
 
 	csma_top->tx_done(status);
 }
@@ -200,4 +208,24 @@ static void cc2520_csma_tx_done(u8 status)
 static void cc2520_csma_rx_done(u8 *buf, u8 len)
 {
 	csma_top->rx_done(buf, len);
+}
+
+void cc2520_csma_set_enabled(bool enabled)
+{
+ csma_enabled = enabled;
+}
+
+void cc2520_csma_set_min_backoff(int backoff)
+{
+	backoff_min = backoff;
+}
+
+void cc2520_csma_set_init_backoff(int backoff)
+{
+	backoff_max_init = backoff;
+}
+
+void cc2520_csma_set_cong_backoff(int backoff)
+{
+	backoff_max_cong = backoff;
 }

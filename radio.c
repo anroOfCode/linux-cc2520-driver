@@ -272,7 +272,6 @@ void cc2520_radio_free()
 
 void cc2520_radio_start()
 {
-	//INIT_WORK(&work, cc2520_radio_download_packet);
 	cc2520_radio_lock(CC2520_RADIO_STATE_CONFIG);
 	tsfer.cs_change = 1;
 

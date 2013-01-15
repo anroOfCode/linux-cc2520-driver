@@ -13,6 +13,8 @@
 #include "interface.h"
 #include "radio.h"
 #include "sack.h"
+#include "csma.h"
+#include "lpl.h"
 
 struct cc2520_interface *interface_bottom;
 
@@ -45,6 +47,8 @@ static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data);
 static void interface_ioctl_set_address(struct cc2520_set_address_data *data);
 static void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data);
 static void interface_ioctl_set_ack(struct cc2520_set_ack_data *data);
+static void interface_ioctl_set_lpl(struct cc2520_set_lpl_data *data);
+static void interface_ioctl_set_csma(struct cc2520_set_csma_data *data);
 
 static long interface_ioctl(struct file *file,
 		 unsigned int ioctl_num,
@@ -146,16 +150,22 @@ static long interface_ioctl(struct file *file,
 			cc2520_radio_off();
 			break;
 		case CC2520_IO_RADIO_SET_CHANNEL:
-			interface_ioctl_set_channel((struct cc2520_set_channel_data *) ioctl_param);
+			interface_ioctl_set_channel((struct cc2520_set_channel_data*) ioctl_param);
 			break;
 		case CC2520_IO_RADIO_SET_ADDRESS:
-			interface_ioctl_set_address((struct cc2520_set_address_data *) ioctl_param);
+			interface_ioctl_set_address((struct cc2520_set_address_data*) ioctl_param);
 			break;
 		case CC2520_IO_RADIO_SET_TXPOWER:
-			interface_ioctl_set_txpower((struct cc2520_set_txpower_data *) ioctl_param);
+			interface_ioctl_set_txpower((struct cc2520_set_txpower_data*) ioctl_param);
 			break;
 		case CC2520_IO_RADIO_SET_ACK:
 			interface_ioctl_set_ack((struct cc2520_set_ack_data*) ioctl_param);
+			break;
+		case CC2520_IO_RADIO_SET_LPL:
+			interface_ioctl_set_lpl((struct cc2520_set_lpl_data*) ioctl_param);
+			break;
+		case CC2520_IO_RADIO_SET_CSMA:
+			interface_ioctl_set_csma((struct cc2520_set_csma_data*) ioctl_param);
 			break;
 	}
 
@@ -228,12 +238,49 @@ static void interface_ioctl_set_ack(struct cc2520_set_ack_data *data)
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_ack_data));
 
 	if (result) {
-		printk(KERN_INFO "[cc2520] - an error occurred setting soft ack\n");
+		ERR((KERN_INFO "[cc2520] - an error occurred setting soft ack\n"));
 		return;
 	}
 
-	printk(KERN_INFO "[cc2520] - setting softack timeout\n");
+	INFO((KERN_INFO "[cc2520] - setting softack timeout: %d\n", ldata.timeout));
 	cc2520_sack_set_timeout(ldata.timeout);
+}
+
+static void interface_ioctl_set_lpl(struct cc2520_set_lpl_data *data)
+{
+	int result;
+	struct cc2520_set_lpl_data ldata;
+	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_lpl_data));
+
+	if (result) {
+		ERR((KERN_INFO "[cc2520] - an error occurred setting lpl\n"));
+		return;
+	}
+
+	INFO((KERN_INFO "[cc2520] - setting lpl enabled: %d, window: %d, interval: %d\n", 
+		ldata.enabled, ldata.window, ldata.interval));
+	cc2520_lpl_set_enabled(ldata.enabled);
+	cc2520_lpl_set_listen_length(ldata.window);
+	cc2520_lpl_set_wakeup_interval(ldata.interval);	
+}
+
+static void interface_ioctl_set_csma(struct cc2520_set_csma_data *data)
+{
+	int result;
+	struct cc2520_set_csma_data ldata;
+	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_csma_data));
+
+	if (result) {
+		ERR((KERN_INFO "[cc2520] - an error occurred setting csma\n"));
+		return;
+	}
+
+	INFO((KERN_INFO "[cc2520] - setting csma enabled: %d, min_backoff: %d, init_backoff: %d, cong_backoff_ %d\n",
+		ldata.enabled, ldata.min_backoff, ldata.init_backoff, ldata.cong_backoff));
+	cc2520_csma_set_enabled(ldata.enabled);
+	cc2520_csma_set_min_backoff(ldata.min_backoff);
+	cc2520_csma_set_init_backoff(ldata.init_backoff);
+	cc2520_csma_set_cong_backoff(ldata.cong_backoff);
 }
 
 /////////////////

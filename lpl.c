@@ -45,7 +45,7 @@ int cc2520_lpl_init()
 
 	lpl_window = CC2520_DEF_LPL_LISTEN_WINDOW;
 	lpl_interval = CC2520_DEF_LPL_WAKEUP_INTERVAL;
-	lpl_enabled = true;
+	lpl_enabled = CC2520_DEF_LPL_ENABLED;
 
 	cur_tx_buf = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
 	if (!cur_tx_buf) {
