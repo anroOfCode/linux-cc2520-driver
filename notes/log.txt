@@ -366,6 +366,28 @@ fields however), or one more than the len value in the case of
 a TX (the last two bytes are missing, the len value includes
 the length field, while the length field itself does not. -1 + 2 = 1).
  
+Awful Terrible CSMA Bug:
+-------------------------
+Hypothesis: LPL TX calling top->tx_done is breaking things. 
+
+What we know:
+
+What is the big difference between enabling CSMA?
+- tx is randomly delayed.
+- tx is called from a hrtimer interrupt
+- tx_done is sometimes called from a hrtimer interrupt
+
+Other things to note:
+- csma_tx should NEVER be called while a tx is in progress. interface semaphore should be blocking.
+
+BUG FIXED! =)
+
+
+
+
+
+
+
 
 
 

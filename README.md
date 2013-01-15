@@ -16,6 +16,9 @@ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi-
 
 Please note that we're cross-compiling from an x86 machine.
 
+More info can be found [on our lab wiki.](http://energy.eecs.umich.edu/wiki/doku.php?id=proj:rpibr:start)
+
+
 Installing
 ----------
 
@@ -273,15 +276,12 @@ result 12
 
 Current Status
 ---------------
-The driver currently sends and receives packets! We get close to the maximum
-theoretical transmission rate supported by the CC2520, which is just fantastic.
+The driver is starting to shape up to be feature-complete. Looking for obscure
+timing bugs at the moment, but we support LPL, CSMA/CA, unique filtering, and
+Soft-ACK features. It's basically a fully-featured radio implementing something
+that's really close to the default TinyOS radio stack.
 
-We also support software acknowledgments.
-
-Work is currently focused on implementing LPL. 
-The goal is to push as much as possible into userland
-but some things need to be implemented in the kernel to enable strict
-timing guarantees. 
+It runs more-or-less a generic, standard MAC layer. Nothing fancy.
 
 Some notes
 ----------

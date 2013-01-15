@@ -212,7 +212,7 @@ static void cc2520_csma_rx_done(u8 *buf, u8 len)
 
 void cc2520_csma_set_enabled(bool enabled)
 {
- csma_enabled = enabled;
+	csma_enabled = enabled;
 }
 
 void cc2520_csma_set_min_backoff(int backoff)
