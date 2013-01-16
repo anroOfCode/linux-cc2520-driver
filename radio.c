@@ -324,8 +324,10 @@ bool cc2520_radio_is_clear()
 	return gpio_get_value(CC2520_CCA) == 1;
 }
 
-void cc2520_radio_set_channel(int channel)
+void cc2520_radio_set_channel(int new_channel)
 {
+	channel = new_channel;
+	
 	cc2520_freqctrl_t freqctrl;
 	freqctrl = cc2520_freqctrl_default;
 
