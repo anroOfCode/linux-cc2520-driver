@@ -689,12 +689,22 @@ static void cc2520_radio_finishRx(void *arg)
 	// upper layers. 
 	radio_top->rx_done(rx_buf_r, len + 1);
 
-	// Allow for subsequent FIFOP
-	spin_lock_irqsave(&pending_rx_sl, flags);
-	pending_rx = false;
-	spin_unlock_irqrestore(&pending_rx_sl, flags);
-	
 	DBG((KERN_INFO "[cc2520] - Read %d bytes from radio.\n", len));
+
+	// For now if we received more than one RX packet we simply
+	// clear the buffer, in the future we can move back to the scheme
+	// where pending_rx is actually a FIFOP toggle counter and continue
+	// to receive another packet. Only do this if it becomes a problem.
+	if (gpio_get_value(CC2520_FIFO) == 1) {
+		INFO((KERN_INFO "[cc2520] - more than one RX packet received, flushing buffer\n"));
+		cc2520_radio_flushRx();
+	}
+	else {
+		// Allow for subsequent FIFOP
+		spin_lock_irqsave(&pending_rx_sl, flags);
+		pending_rx = false;
+		spin_unlock_irqrestore(&pending_rx_sl, flags);
+	}
 }
 
 void cc2520_radio_release_rx()
