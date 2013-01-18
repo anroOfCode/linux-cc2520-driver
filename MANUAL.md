@@ -76,6 +76,15 @@ send an ACK within the timeout period.
 
 Frame Format
 ------------
+We use pseudo-802.15.4 frames for this radio that preserve some of the
+radio-specific information that is likely to be useful for building
+applications. 
+
+**Sending Frame Format**
+
+^ Bytes ^ Title   ^ Description ^
+| 1     | Length  | The 802.15.4 correct length field, including 2 checksum bytes.
+
 
 Carrier Sense Multi-Access/Collision Avoidance (CSMA/CA)
 --------------------------------------------------------
