@@ -80,6 +80,10 @@ We use pseudo-802.15.4 frames for this radio that preserve some of the
 radio-specific information that is likely to be useful for building
 applications. 
 
+The radio automatically computes the CRC on the way out, and when
+receiving packets will replace the CRC with metadata related to 
+packet reception.
+
 **Sending Frame Format**
 
 <table>
@@ -91,7 +95,8 @@ applications.
 	<tr>
 		<td>1</td>
 		<td>Length</td>
-		<td>The 802.15.4 correct length field, including 2 CRC bytes.</td>
+		<td>The entire length of the packet, including 2 CRC bytes, 
+			but excluding the length byte itself.</td>
 	</tr>
 	<tr>
 		<td>2</td>
@@ -103,7 +108,67 @@ applications.
 		<td>DSN</td>
 		<td>Incrementing data sequence number, used to filter duplicate frames. </td>
 	</tr>
+	<tr>
+		<td>multiple</td>
+		<td>Address Info</td>
+		<td>Depending on the FCS bits, this will contain some variation of PAN-ID and short
+			or extended addresses for the source and destination.</td>
+	</tr>
+	<tr>
+		<td>multiple</td>
+		<td>Payload</td>
+		<td>The MAC payload goes next.</td>
+	</tr>
 </table>
+
+**Note**: The radio WILL compute a CRC checksum automatically and append this information to
+the outgoing frame. You must specify a length that includes the CRC checksum, but exclude it
+from the packet itself. 
+
+**Receiving Frame Format**
+
+<table>
+	<tr>
+		<th>Bytes</th>
+		<th>Title</th>
+		<th>Description</th>
+	</tr>
+	<tr>
+		<td>1</td>
+		<td>Length</td>
+		<td>The entire length of the packet, including 2 CRC bytes, 
+			but excluding the length byte itself.</td>
+	</tr>
+	<tr>
+		<td>2</td>
+		<td>FCS</td>
+		<td>Frame control sequence, ACK bit will be checked.</td>
+	</tr>
+	<tr>
+		<td>1</td>
+		<td>DSN</td>
+		<td>Incrementing data sequence number, used to filter duplicate frames. </td>
+	</tr>
+	<tr>
+		<td>multiple</td>
+		<td>Address Info</td>
+		<td>Depending on the FCS bits, this will contain some variation of PAN-ID and short
+			or extended addresses for the source and destination.</td>
+	</tr>
+	<tr>
+		<td>multiple</td>
+		<td>Payload</td>
+		<td>The MAC payload goes next.</td>
+	</tr>
+	<tr>
+		<td>2</td>
+		<td>Packet Metadata</td>
+		<td>The final two bytes includes a bit indicating whether the checksum was correct,
+			7-bits dedicated to RSSI and a byte dedicated to LQI. See the CC2520's datasheet
+			for more information. </td>
+	</tr>
+</tr>
+
 
 Carrier Sense Multi-Access/Collision Avoidance (CSMA/CA)
 --------------------------------------------------------
