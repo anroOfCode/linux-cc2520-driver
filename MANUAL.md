@@ -167,7 +167,7 @@ from the packet itself.
 			7-bits dedicated to RSSI and a byte dedicated to LQI. See the CC2520's datasheet
 			for more information. </td>
 	</tr>
-</tr>
+</table>
 
 
 Carrier Sense Multi-Access/Collision Avoidance (CSMA/CA)
