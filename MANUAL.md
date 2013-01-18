@@ -82,24 +82,28 @@ applications.
 
 **Sending Frame Format**
 
-{|
-! Bytes
-! Title
-! Description
-|-
-|1
-|Length
-|The 802.15.4 correct length field, including 2 CRC bytes.
-|-
-|2
-|FCS
-|Frame control sequence, ACK bit will be checked.
-|-
-|
-|1
-|DSN
-|Incrementing data sequence number, used to filter duplicate frames. 
-|}
+<table>
+	<tr>
+		<th>Bytes</th>
+		<th>Title</th>
+		<th>Description</th>
+	</tr>
+	<tr>
+		<td>1</td>
+		<td>Length</td>
+		<td>The 802.15.4 correct length field, including 2 CRC bytes.</td>
+	</tr>
+	<tr>
+		<td>2</td>
+		<td>FCS</td>
+		<td>Frame control sequence, ACK bit will be checked.</td>
+	</tr>
+	<tr>
+		<td>1</td>
+		<td>DSN</td>
+		<td>Incrementing data sequence number, used to filter duplicate frames. </td>
+	</tr>
+</table>
 
 Carrier Sense Multi-Access/Collision Avoidance (CSMA/CA)
 --------------------------------------------------------
