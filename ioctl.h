@@ -4,6 +4,7 @@
 
 #ifndef __KERNEL__
 #include <inttypes.h>
+#include <stdbool.h>
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -37,6 +38,10 @@ struct cc2520_set_csma_data {
 	bool enabled;
 };
 
+struct cc2520_set_print_messages_data {
+	bool enabled;
+};
+
 // Possible TX Powers:
 #define CC2520_TXPOWER_5DBM 0xF7
 #define CC2520_TXPOWER_3DBM 0xF2
@@ -61,3 +66,4 @@ struct cc2520_set_txpower_data {
 #define CC2520_IO_RADIO_SET_ACK _IOW(BASE, 6, struct cc2520_set_ack_data)
 #define CC2520_IO_RADIO_SET_LPL _IOW(BASE, 7, struct cc2520_set_lpl_data)
 #define CC2520_IO_RADIO_SET_CSMA _IOW(BASE, 8, struct cc2520_set_csma_data)
+#define CC2520_IO_RADIO_SET_PRINT _IOW(BASE, 9, struct cc2520_set_print_messages_data)

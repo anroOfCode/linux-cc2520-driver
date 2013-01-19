@@ -38,6 +38,8 @@ static struct semaphore rx_done_sem;
 // Results, stored by the callbacks
 static int tx_result;
 
+static bool print_messages = false;
+
 DECLARE_WAIT_QUEUE_HEAD(cc2520_interface_read_queue);
 
 static void cc2520_interface_tx_done(u8 status);
@@ -49,6 +51,8 @@ static void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data);
 static void interface_ioctl_set_ack(struct cc2520_set_ack_data *data);
 static void interface_ioctl_set_lpl(struct cc2520_set_lpl_data *data);
 static void interface_ioctl_set_csma(struct cc2520_set_csma_data *data);
+static void interface_ioctl_set_print(struct cc2520_set_print_messages_data *data);
+
 
 static long interface_ioctl(struct file *file,
 		 unsigned int ioctl_num,
@@ -73,6 +77,25 @@ void cc2520_interface_rx_done(u8 *buf, u8 len)
 ////////////////////
 // Implementation
 ////////////////////
+
+static void interface_print_to_log(char *buf, int len, bool is_write)
+{
+	char print_buf[512];
+	char *print_buf_ptr;
+	int i;
+
+	print_buf_ptr = print_buf;
+
+	for (i = 0; i < len; i++) {
+		print_buf_ptr += sprintf(print_buf_ptr, " 0x%02X", buf[i]);
+	}
+	*(print_buf_ptr) = '\0';
+
+	if (is_write)
+		INFO((KERN_INFO "[cc2520] - write: %s\n", print_buf));
+	else
+		INFO((KERN_INFO "[cc2520] - read: %s\n", print_buf));
+}
 
 // Should accept a 6LowPAN frame, no longer than 127 bytes.
 static ssize_t interface_write(
@@ -105,6 +128,10 @@ static ssize_t interface_write(
 	}
 	tx_pkt_len = pkt_len;
 
+	if (print_messages) {
+		interface_print_to_log(tx_buf_c, pkt_len, true);
+	}
+
 	// Step 3: Launch off into sending this packet,
 	// wait for an asynchronous callback to occur in
 	// the form of a semaphore. 
@@ -128,6 +155,10 @@ static ssize_t interface_read(struct file *filp, char __user *buf, size_t count,
 	interruptible_sleep_on(&cc2520_interface_read_queue);
 	if (copy_to_user(buf, rx_buf_c, rx_pkt_len))
 		return -EFAULT;
+
+	if (print_messages) {
+		interface_print_to_log(rx_buf_c, rx_pkt_len, false);
+	}
 
 	return rx_pkt_len;
 }
@@ -167,6 +198,9 @@ static long interface_ioctl(struct file *file,
 		case CC2520_IO_RADIO_SET_CSMA:
 			interface_ioctl_set_csma((struct cc2520_set_csma_data*) ioctl_param);
 			break;
+		case CC2520_IO_RADIO_SET_PRINT:
+			interface_ioctl_set_print((struct cc2520_set_print_messages_data*) ioctl_param);
+			break;
 	}
 
 	return 0;
@@ -183,7 +217,22 @@ struct file_operations fops = {
 /////////////////
 // IOCTL Handlers
 ///////////////////
+static void interface_ioctl_set_print(struct cc2520_set_print_messages_data *data)
+{
+	int result;
+	struct cc2520_set_print_messages_data ldata;
 
+	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_print_messages_data));
+
+	if (result) {
+		ERR((KERN_ALERT "[cc2520] - an error occurred setting print messages\n"));
+		return;
+	}
+
+	INFO((KERN_INFO "[cc2520] - setting debug message print: %d", ldata.enabled));
+
+	print_messages = ldata.enabled;
+}
 static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data)
 {
 	int result;
