@@ -326,9 +326,9 @@ bool cc2520_radio_is_clear()
 
 void cc2520_radio_set_channel(int new_channel)
 {
-	channel = new_channel;
-	
 	cc2520_freqctrl_t freqctrl;
+
+	channel = new_channel;
 	freqctrl = cc2520_freqctrl_default;
 
 	freqctrl.f.freq = 11 + 5 * (channel - 11);
@@ -337,18 +337,15 @@ void cc2520_radio_set_channel(int new_channel)
 }
 
 // Sets the short address
-void cc2520_radio_set_address(u16 short_addr, u64 extended_addr, u16 pan_id)
+void cc2520_radio_set_address(u16 new_short_addr, u64 new_extended_addr, u16 new_pan_id)
 {
 	char addr_mem[12];
 
-	addr_mem[7] = (extended_addr >> 56) & 0xFF;
-	addr_mem[6] = (extended_addr >> 48) & 0xFF;
-	addr_mem[5] = (extended_addr >> 40) & 0xFF;
-	addr_mem[4] = (extended_addr >> 32) & 0xFF;
-	addr_mem[3] = (extended_addr >> 24) & 0xFF;
-	addr_mem[2] = (extended_addr >> 16) & 0xFF;
-	addr_mem[1] = (extended_addr >> 8) & 0xFF;
-	addr_mem[0] = (extended_addr) & 0xFF;
+	short_addr = new_short_addr;
+	extended_addr = new_extended_addr;
+	pan_id = new_pan_id;
+
+	memcpy(addr_mem, &extended_addr, 8);
 
 	addr_mem[9] = (pan_id >> 8) & 0xFF;
 	addr_mem[8] = (pan_id) & 0xFF;
