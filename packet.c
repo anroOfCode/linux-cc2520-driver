@@ -8,8 +8,7 @@ bool cc2520_packet_requires_ack_reply(u8 *buf)
 	ieee154_simple_header_t *header;
 	header = cc2520_packet_get_header(buf);
 	DBG((KERN_INFO "[cc2520] - fcf: %d\n", header->fcf));
-	return ((header->fcf & (1 << IEEE154_FCF_ACK_REQ)) != 0) && 
-		(header->dest != IEEE154_BROADCAST_ADDR);
+	return ((header->fcf & (1 << IEEE154_FCF_ACK_REQ)) != 0);
 }
 
 bool cc2520_packet_requires_ack_wait(u8 *buf)
@@ -17,8 +16,7 @@ bool cc2520_packet_requires_ack_wait(u8 *buf)
 	ieee154_simple_header_t *header;
 	header = cc2520_packet_get_header(buf);
 
-	return ((header->fcf & (1 << IEEE154_FCF_ACK_REQ)) != 0) && 
-		(header->dest != IEEE154_BROADCAST_ADDR);
+	return (header->fcf & (1 << IEEE154_FCF_ACK_REQ)) != 0;
 }
 
 bool cc2520_packet_is_ack(u8* buf)

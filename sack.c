@@ -227,7 +227,7 @@ static enum hrtimer_restart cc2520_sack_timer_cb(struct hrtimer *timer)
 	spin_lock_irqsave(&sack_sl, flags);
 
 	if (sack_state == CC2520_SACK_TX_WAIT) {
-		DBG((KERN_INFO "[cc2520] - tx ack timeout exceeded.\n"));
+		INFO((KERN_INFO "[cc2520] - tx ack timeout exceeded.\n"));
 		sack_state = CC2520_SACK_IDLE;
 		spin_unlock_irqrestore(&sack_sl, flags);
 
