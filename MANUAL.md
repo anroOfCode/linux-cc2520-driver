@@ -32,12 +32,59 @@ a point of maturity.
 
 Overview
 --------
+This driver implements a complete interface for the CC2520 radio. It's
+low-level enough that it can be used to build a variety of IP or other
+solutions in user-land. Decisions on what to include in the feature set
+were made by examining two criteria, first what was strictly necessary
+from a timing standpoint, and second what made sense from a standpoint of
+being self-contained and feature-complete.
+
+By exposing a character driver it becomes quite easy to get up and running
+quickly. This manual is designed as supporting documentation to make it
+easy to dive into the advanced configuration and usage scenarios possible
+and give a cursory overview of the driver's layout to make it easier to
+extend. 
 
 Configuration
 -------------
+All run-time configuration of the driver is done using ioctls from the calling
+process. You can find the complete definition of the available ioctls in
+<code>ioctl.h</code> and I recommend you check there for the most up-to-date
+information.
+
+For information on the exact mechanics of performing ioctls please see some
+of the reference information I've included. 
 
 Default Configuration
 ---------------------
+By default the radio is configured to be interoperable with standard TinyOS
+radio stacks. It's configured with most optional features turned on. Feature
+parameters can be found in <code>cc2520.h</code> and are set by default as follows:
+
+```
+// Defaults for Radio Operation
+#define CC2520_DEF_CHANNEL 26
+#define CC2520_DEF_RFPOWER 0x32 // 0 dBm
+#define CC2520_DEF_PAN 0x22
+#define CC2520_DEF_SHORT_ADDR 0x01
+#define CC2520_DEF_EXT_ADDR 0x01
+
+// All these timing parameters are in microseconds.
+#define CC2520_DEF_ACK_TIMEOUT 2500 
+#define CC2520_DEF_MIN_BACKOFF 320
+#define CC2520_DEF_INIT_BACKOFF 4960
+#define CC2520_DEF_CONG_BACKOFF 2240
+#define CC2520_DEF_CSMA_ENABLED true
+
+// We go for around a 1% duty cycle of the radio
+// for LPL stuff. 
+#define CC2520_DEF_LPL_WAKEUP_INTERVAL 512000
+#define CC2520_DEF_LPL_LISTEN_WINDOW 5120
+#define CC2520_DEF_LPL_ENABLED true
+```
+
+These parameters are better explained in the relevant feature sections below
+and correspond to the members of the ioctl data structures.
 
 Character Driver Interface
 --------------------------
@@ -57,11 +104,28 @@ packet size it will overrun.
 other radio specific error codes.
   * **Our driver is not fully thread-safe.** Although you can certainly
 send and receive packets simultaneously (this is recommended), you may
-not send multiple packets from separate threads. Only a single packet
-may be sent or received at any time from all processes. 
+not send multiple packets simultaneously from separate threads. Only a 
+single packet may be sent or received at any time from all processes. 
   * Our driver does not implement nonblocking IO currently. The low
 data rates really don't make this something we need to do, although
 it might be supported in the future. 
+
+**<code>write()</code> Calls**
+
+Calling write with a data frame as specified below will return in most
+cases the length of the data written, as typical of Linux character
+drivers. It will never perform an incomplete write, but the maximum
+buffer size that is allowable is 128 bytes, 1 byte for the PHY length
+field, and 127 for the MAC datagram. 
+
+The write call will block until the entire transmission has been
+completed by the radio. This can be 10s of milliseconds depending
+on how you configure radio features such as LPL.
+
+When the write call returns the caller should examine the return
+value. If it is negative this indicates an error in transmission
+and should be handled appropriately. The error codes are listed
+below. 
 
 **Error Codes**
 
@@ -73,6 +137,15 @@ be transmitted.
   * **CC2520_TX_ACK_TIMEOUT** - The packet was sent but the receive did not
 send an ACK within the timeout period.
   * **CC2520_TX_FAILED** - A general error has occurred.
+
+**<code>read()</code> Calls**
+
+Calling read will block indefinitely until a packet arrives. When a packet
+does arrive it will write the packet to the specified buffer and return the
+length of the packet.
+
+Because receive is only valid when an appropriate packet has been received
+it has no error codes. Read should always be called with a 128 byte buffer.
 
 Frame Format
 ------------
@@ -100,7 +173,7 @@ packet reception.
 	</tr>
 	<tr>
 		<td>2</td>
-		<td>FCS</td>
+		<td>FCF</td>
 		<td>Frame control sequence, ACK bit will be checked.</td>
 	</tr>
 	<tr>
@@ -111,7 +184,7 @@ packet reception.
 	<tr>
 		<td>multiple</td>
 		<td>Address Info</td>
-		<td>Depending on the FCS bits, this will contain some variation of PAN-ID and short
+		<td>Depending on the FCF bits, this will contain some variation of PAN-ID and short
 			or extended addresses for the source and destination.</td>
 	</tr>
 	<tr>
@@ -141,7 +214,7 @@ from the packet itself.
 	</tr>
 	<tr>
 		<td>2</td>
-		<td>FCS</td>
+		<td>FCF</td>
 		<td>Frame control sequence, ACK bit will be checked.</td>
 	</tr>
 	<tr>
@@ -152,7 +225,7 @@ from the packet itself.
 	<tr>
 		<td>multiple</td>
 		<td>Address Info</td>
-		<td>Depending on the FCS bits, this will contain some variation of PAN-ID and short
+		<td>Depending on the FCF bits, this will contain some variation of PAN-ID and short
 			or extended addresses for the source and destination.</td>
 	</tr>
 	<tr>
@@ -169,6 +242,8 @@ from the packet itself.
 	</tr>
 </table>
 
+Please see the original MAC specification for more information on how to set the FCF
+fields for different addressing modes. 
 
 Carrier Sense Multi-Access/Collision Avoidance (CSMA/CA)
 --------------------------------------------------------
@@ -220,7 +295,7 @@ parameter is the timeout, in microseconds, that the driver will wait for
 other radios to send an acknowledgment. It defaults to 2.5ms. 
 
 Soft-ACK is always enabled, but acknowledgment is controlled on a per-packet
-basis. Check the 802.15.4 MAC frame control sequence (FCS) header for more
+basis. Check the 802.15.4 MAC frame control field (FCF) header for more
 information on how to request software acknowledgments on an individual packet.
 The driver will always acknowledge packets received requesting an acknowledgment.
 
@@ -276,9 +351,41 @@ non-broadcast address, or to disable LPL.
 
 Sending/Receiving Data
 ----------------------
+Generally the best way to setup a user application for interaction with this
+radio is to create two dedicated threads for sending and receiving data, and
+implement in/out buffering in your application. The driver itself does not 
+buffer any packets, it will only hold the most recently received packet and
+only keeps buffers for transmitting a single packet at a time. It will drop
+packets received when there isn't a blocking read() call pending data, and
+it will fail (perhaps catastrophically) if multiple write operations occur.
+
+I suggest two threads with a threading model that looks something like this:
+
+**Send Thread:** 
+
+Waits for signal from the main thread. This signal indicates
+that there is a new packet to be transmitted in a shared thread-safe FIFO queue.
+Wakes up and calls write() with the packet, waits for the driver to return. After
+the driver finishes transmitting this thread examines the error code and takes
+appropriate action, including scheduling callbacks that handle successful or failed
+transmissions on the main thread. Finally this thread will loop and check the FIFO 
+queue for another packet to send and wait for a flag from the main thread.
+
+**Receive Thread:** 
+
+Calls read() immediately and blocks on the radio receiving a new packet. Upon
+read() reading this thread will add the data to a shared, thread-safe, FIFO queue
+and signal the main thread that data is available. It will immediately proceed to
+wait again on read().
+
+Laying out your system in this way should achieve decent data rates, while not
+consuming excessive resources.
 
 Turning the Radio On/Off
 ------------------------
+Turning the radio on and off also occurs using ioctls. You may not turn the radio
+off while actively transmitting or receiving a packet, doing so is not considered
+thread-safe. 
 
 Portability
 ------------
@@ -314,6 +421,12 @@ to go.
 
 This code could easily be modified to support other radios out there, including
 the CC2420 (trivially), and the RF230 by Atmel. 
+
+Additional References
+---------------------
+  * [CC2520 Datasheet](http://www.ti.com/lit/ds/symlink/cc2520.pdf)
+  * [802.15.4 Specification](http://standards.ieee.org/getieee802/download/802.15.4-2011.pdf)
+  * [Basic ioctl Introduction](http://linux.die.net/lkmpg/x892.html)
 
 License
 -------
