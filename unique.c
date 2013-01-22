@@ -10,7 +10,7 @@
 
 struct node_list{
 	struct list_head list;
-	u16 src;
+	u64 src;
 	u8 dsn;
 };
 
@@ -59,13 +59,13 @@ static void cc2520_unique_rx_done(u8 *buf, u8 len)
 {
 	struct node_list *tmp;
 	u8 dsn;
-	u16 src;
+	u64 src;
 	bool found;
 	bool drop;
 
 
 	dsn = cc2520_packet_get_header(buf)->dsn;
-	src = cc2520_packet_get_header(buf)->src;
+	src = cc2520_packet_get_src(buf);
 	
 	found = false;
 	drop = false;
@@ -89,7 +89,7 @@ static void cc2520_unique_rx_done(u8 *buf, u8 len)
 			tmp->dsn = dsn;
 			tmp->src = src;
 			list_add(&(tmp->list), &nodes);
-			INFO((KERN_INFO "[cc2520] - unique found new mote: %d\n", src));
+			INFO((KERN_INFO "[cc2520] - unique found new mote: %lld\n", src));
 		}
 		else {
 			INFO((KERN_INFO "[cc2520] - alloc failed.\n"));
