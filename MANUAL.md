@@ -32,9 +32,28 @@ a point of maturity.
 
 Overview
 --------
+This driver implements a complete interface for the CC2520 radio. It's
+low-level enough that it can be used to build a variety of IP or other
+solutions in user-land. Decisions on what to include in the feature set
+were made by examining two criteria, first what was strictly necessary
+from a timing standpoint, and second what made sense from a standpoint of
+being self-contained and feature-complete.
+
+By exposing a character driver it becomes quite easy to get up and running
+quickly. This manual is designed as supporting documentation to make it
+easy to dive into the advanced configuration and usage scenarios possible
+and give a cursory overview of the driver's layout to make it easier to
+extend. 
 
 Configuration
 -------------
+All run-time configuration of the driver is done using ioctls from the calling
+process. You can find the complete definition of the available ioctls in
+<code>ioctl.h</code> and I recommend you check there for the most up-to-date
+information.
+
+For information on the exact mechanics of performing ioctls please see some
+of the reference information I've included. 
 
 Default Configuration
 ---------------------
@@ -92,6 +111,7 @@ data rates really don't make this something we need to do, although
 it might be supported in the future. 
 
 **<code>write()</code> Calls**
+
 Calling write with a data frame as specified below will return in most
 cases the length of the data written, as typical of Linux character
 drivers. It will never perform an incomplete write, but the maximum
@@ -119,6 +139,7 @@ send an ACK within the timeout period.
   * **CC2520_TX_FAILED** - A general error has occurred.
 
 **<code>read()</code> Calls**
+
 Calling read will block indefinitely until a packet arrives. When a packet
 does arrive it will write the packet to the specified buffer and return the
 length of the packet.
@@ -330,9 +351,41 @@ non-broadcast address, or to disable LPL.
 
 Sending/Receiving Data
 ----------------------
+Generally the best way to setup a user application for interaction with this
+radio is to create two dedicated threads for sending and receiving data, and
+implement in/out buffering in your application. The driver itself does not 
+buffer any packets, it will only hold the most recently received packet and
+only keeps buffers for transmitting a single packet at a time. It will drop
+packets received when there isn't a blocking read() call pending data, and
+it will fail (perhaps catastrophically) if multiple write operations occur.
+
+I suggest two threads with a threading model that looks something like this:
+
+**Send Thread:** 
+
+Waits for signal from the main thread. This signal indicates
+that there is a new packet to be transmitted in a shared thread-safe FIFO queue.
+Wakes up and calls write() with the packet, waits for the driver to return. After
+the driver finishes transmitting this thread examines the error code and takes
+appropriate action, including scheduling callbacks that handle successful or failed
+transmissions on the main thread. Finally this thread will loop and check the FIFO 
+queue for another packet to send and wait for a flag from the main thread.
+
+**Receive Thread:** 
+
+Calls read() immediately and blocks on the radio receiving a new packet. Upon
+read() reading this thread will add the data to a shared, thread-safe, FIFO queue
+and signal the main thread that data is available. It will immediately proceed to
+wait again on read().
+
+Laying out your system in this way should achieve decent data rates, while not
+consuming excessive resources.
 
 Turning the Radio On/Off
 ------------------------
+Turning the radio on and off also occurs using ioctls. You may not turn the radio
+off while actively transmitting or receiving a packet, doing so is not considered
+thread-safe. 
 
 Portability
 ------------
@@ -368,6 +421,12 @@ to go.
 
 This code could easily be modified to support other radios out there, including
 the CC2420 (trivially), and the RF230 by Atmel. 
+
+Additional References
+---------------------
+  * [CC2520 Datasheet](http://www.ti.com/lit/ds/symlink/cc2520.pdf)
+  * [802.15.4 Specification](http://standards.ieee.org/getieee802/download/802.15.4-2011.pdf)
+  * [Basic ioctl Introduction](http://linux.die.net/lkmpg/x892.html)
 
 License
 -------
