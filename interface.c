@@ -80,13 +80,13 @@ void cc2520_interface_rx_done(u8 *buf, u8 len)
 
 static void interface_print_to_log(char *buf, int len, bool is_write)
 {
-	char print_buf[512];
+	char print_buf[641];
 	char *print_buf_ptr;
 	int i;
 
 	print_buf_ptr = print_buf;
 
-	for (i = 0; i < len; i++) {
+	for (i = 0; i < len && i < 128; i++) {
 		print_buf_ptr += sprintf(print_buf_ptr, " 0x%02X", buf[i]);
 	}
 	*(print_buf_ptr) = '\0';
