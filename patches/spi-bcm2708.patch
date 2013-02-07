@@ -1,5 +1,5 @@
 diff --git a/drivers/spi/spi-bcm2708.c b/drivers/spi/spi-bcm2708.c
-index 088cbaa..af83722 100644
+index 088cbaa..661a4cb 100644
 --- a/drivers/spi/spi-bcm2708.c
 +++ b/drivers/spi/spi-bcm2708.c
 @@ -1,7 +1,7 @@
@@ -26,17 +26,16 @@ index 088cbaa..af83722 100644
  
  /* SPI register offsets */
  #define SPI_CS			0x00
-@@ -73,6 +81,37 @@
- #define SPI_TIMEOUT_MS	150
+@@ -74,6 +82,37 @@
  
  #define DRV_NAME	"bcm2708_spi"
-+ 
+ 
 +#define FLAGS_FIRST_TRANSFER 0x01
 +#define FLAGS_LAST_TRANSFER  0x02
 +
 +/* the defines that are missing in arch/arm/mach-bcm2708/include/mach/dma.h */
 +/* the Base address for DMA on the (VideoCore) bus */
-+#define DMA_SPI_BASE 0x7E204000 
++#define DMA_SPI_BASE 0x7E204000
 +
 +/* some offset addresses */
 +#ifndef BCM2708_DMA_SADDR
@@ -61,18 +60,17 @@ index 088cbaa..af83722 100644
 +	int irq;
 +	void __iomem *base;
 +};
- 
++
  struct bcm2708_spi {
  	spinlock_t lock;
-@@ -80,15 +119,25 @@ struct bcm2708_spi {
- 	int irq;
+ 	void __iomem *base;
+@@ -81,14 +120,24 @@ struct bcm2708_spi {
  	struct clk *clk;
  	bool stopping;
--
+ 
 -	struct list_head queue;
 -	struct workqueue_struct *workq;
 -	struct work_struct work;
-+	
  	struct completion done;
  
 -	const u8 *tx_buf;
@@ -81,9 +79,9 @@ index 088cbaa..af83722 100644
 +	/* dma buffer structures */
 +	struct bcm2708_dma_cb *dma_buffer;
 +	dma_addr_t dma_buffer_handle;
-+	struct bcm2708_spi_dma dma_tx; 
-+	struct bcm2708_spi_dma dma_rx; 
-+	
++	struct bcm2708_spi_dma dma_tx;
++	struct bcm2708_spi_dma dma_rx;
++
 +	/* structures from the transfer buffer needed during the transfer */
 +	const char* tx_buf;
 +	int tx_len;
@@ -97,30 +95,7 @@ index 088cbaa..af83722 100644
  };
  
  struct bcm2708_spi_state {
-@@ -106,18 +155,18 @@ static void bcm2708_init_pinmode(void)
- {
- #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
- #define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
--
-+	
- 	int pin;
- 	u32 *gpio = ioremap(0x20200000, SZ_16K);
--
-+	
- 	/* SPI is on GPIO 7..11 */
- 	for (pin = 7; pin <= 11; pin++) {
- 		INP_GPIO(pin);		/* set mode to GPIO input first */
- 		SET_GPIO_ALT(pin, 0);	/* set mode to ALT 0 */
- 	}
--
-+	
- 	iounmap(gpio);
--
-+	
- #undef INP_GPIO
- #undef SET_GPIO_ALT
- }
-@@ -132,88 +181,22 @@ static inline void bcm2708_wr(struct bcm2708_spi *bs, unsigned reg, u32 val)
+@@ -132,75 +181,9 @@ static inline void bcm2708_wr(struct bcm2708_spi *bs, unsigned reg, u32 val)
  	writel(val, bs->base + reg);
  }
  
@@ -198,23 +173,7 @@ index 088cbaa..af83722 100644
  {
  	struct bcm2708_spi *bs = spi_master_get_devdata(master);
  	int cdiv;
- 	unsigned long bus_hz;
- 	u32 cs = 0;
--
-+	
- 	bus_hz = clk_get_rate(bs->clk);
--
-+	
- 	if (hz >= bus_hz) {
- 		cdiv = 2; /* bus_hz / 2 is as fast as we can go */
- 	} else if (hz) {
- 		cdiv = DIV_ROUND_UP(bus_hz, hz);
--
-+		
- 		/* CDIV must be a power of 2, so round up */
- 		cdiv = roundup_pow_of_two(cdiv);
- 
-@@ -259,96 +242,467 @@ static int bcm2708_setup_state(struct spi_master *master,
+@@ -259,96 +242,468 @@ static int bcm2708_setup_state(struct spi_master *master,
  	if (state) {
  		state->cs = cs;
  		state->cdiv = cdiv;
@@ -282,10 +241,10 @@ index 088cbaa..af83722 100644
 +           otherwise you get the message:
 +	   coherent DMA mask is unset
 +	   and the allocation fails...
-+	   learned the hard way, so as a hint for all 
++	   learned the hard way, so as a hint for all
 +	   who take this as a base...
 +	*/
-+	bs->dma_buffer= dma_alloc_writecombine(&pdev->dev, 
++	bs->dma_buffer= dma_alloc_writecombine(&pdev->dev,
 +					SZ_4K,
 +					&bs->dma_buffer_handle,
 +					GFP_KERNEL);
@@ -303,7 +262,7 @@ index 088cbaa..af83722 100644
 +static int bcm2708_release_dmabuffer(struct platform_device *pdev,
 +				struct bcm2708_spi * bs) {
 +	if (!bs->dma_buffer) return 0;
-+	dma_free_writecombine(&pdev->dev, SZ_4K, 
++	dma_free_writecombine(&pdev->dev, SZ_4K,
 +			bs->dma_buffer,
 +			bs->dma_buffer_handle);
 +	bs->dma_buffer=NULL;
@@ -318,10 +277,10 @@ index 088cbaa..af83722 100644
 +irqreturn_t bcm2708_transfer_one_message_dma_irqhandler(int irq, void* dev) {
 +	struct spi_master *master = dev;
 +	struct bcm2708_spi *bs = spi_master_get_devdata(master);
-+	/* mark the rx DMA-interrupt as handled 
++	/* mark the rx DMA-interrupt as handled
 +	   - it will (level) trigger otherwise again */
 +	writel(BCM2708_DMA_INT, bs->dma_rx.base+BCM2708_DMA_CS);
-+	
++
 +	/* and wake up the thread to continue its work - returning ...*/
 +	complete(&bs->done);
 + 	/* return IRQ handled */
@@ -335,22 +294,22 @@ index 088cbaa..af83722 100644
 +   This would reduce the "gap" between transfers to virtually 0 (maybe one SPI clock lost)
 +   at the cost of possibly saturating the AXI bus.
 +   Theoretically it would be possible to chain 63 requests together using a single page
-+   that way we could run say 62 4KB DMA requests and by this transfer 248 KB 
-+   without a single CPU cycle needed - except for the final notification IRQ. 
++   that way we could run say 62 4KB DMA requests and by this transfer 248 KB
++   without a single CPU cycle needed - except for the final notification IRQ.
 +   (assuming that the driver requesting this is doing async transfers)
-+   Assuming this, we could at a SPI bus speed of 15.625MHz 
++   Assuming this, we could at a SPI bus speed of 15.625MHz
 +   (core frequency of 250MHz with divider of 16)
 +   we could transfer about 1.953MB/s with just 7.8 interrupts (and Engine wakeups)
 +   (250MHz/16(divider)/8(bit/byte)/(62(CBs we can chain)*4(kb/CB transfer))
-+   But before adding this extra complexity to make this possible 
++   But before adding this extra complexity to make this possible
 +   the driver needing this needs to get written first...
 +   Note: that this would also mean that the SPI bus is really dedicated to this one device!!!
 +
 +   The other thing that could also help was (assuming that DMA in VideoCORE
-+   does not have any errata - like on other arm platforms) if there was an 
++   does not have any errata - like on other arm platforms) if there was an
 +   API that could map kernel addresses directly to BUS addresses independently
 +   from if the xfer block has been allocated in the DMA region (the allocation
-+   call of which returning also returns the bus address), then we could also 
++   call of which returning also returns the bus address), then we could also
 +   enable DMA by default on all transfers  and not only on selected ones.
 +   This could help doing DMA transfers directly to user space without copying
 +   - if there is an API allowing that...
@@ -402,7 +361,7 @@ index 088cbaa..af83722 100644
 -	if (ret == 0) {
 -		dev_err(&spi->dev, "transfer timed out\n");
 +	/* start filling in the CBs */
-+	/* first set up the flags for the fifo 
++	/* first set up the flags for the fifo
 +	   - needs to be set 256 bit alligned, so abusing the first cb */
 +	cbs[0].info=(xfer->len<<16) /* the length in bytes to transfer */
 +		| ( cs&0xff ) /* the bottom 8 bit flags for the SPI interface */
@@ -459,14 +418,14 @@ index 088cbaa..af83722 100644
 +	/* start DMA - this should also enable the DMA */
 +	writel(BCM2708_DMA_ACTIVE, bs->dma_tx.base+BCM2708_DMA_CS);
 +	writel(BCM2708_DMA_ACTIVE, bs->dma_rx.base+BCM2708_DMA_CS);
-+	
++
 +	/* now we are running - waiting to get woken by interrupt */
 +	/* the timeout may be too short - depend on amount of data and frequency... */
 +	if (wait_for_completion_timeout(
 +			&bs->done,
 +			msecs_to_jiffies(SPI_TIMEOUT_MS*10)) == 0) {
 +		/* clear cs */
-+		
++
 +		/* inform of event and return with error */
 +		dev_err(&master->dev, "DMA transfer timed out");
 +		/* need to abort Interrupts */
@@ -477,15 +436,9 @@ index 088cbaa..af83722 100644
 +	/* and return */
 +	return 0;
 +}
- 
--	if (xfer->delay_usecs)
--		udelay(xfer->delay_usecs);
++
 +static irqreturn_t bcm2708_transfer_one_message_irqdriven_irqhandler(int irq, void *dev_id) {
- 
--	if (list_is_last(&xfer->transfer_list, &msg->transfers) ||
--			xfer->cs_change) {
--		/* clear TA and interrupt flags */
--		bcm2708_wr(bs, SPI_CS, stp->cs);
++
 +	struct spi_master *master=dev_id;
 +	char b;
 +	struct bcm2708_spi *bs = spi_master_get_devdata(master);
@@ -497,7 +450,7 @@ index 088cbaa..af83722 100644
 +		bcm2708_wr(bs,SPI_FIFO,b);
 +		/* and decrement rx_len */
 +		(bs->tx_len)--;
- 	}
++	}
 +	/* check for reads */
 +	while (bcm2708_rd(bs, SPI_CS)&SPI_CS_RXD) {
 +		/* getting byte from fifo */
@@ -508,21 +461,26 @@ index 088cbaa..af83722 100644
 +		(bs->rx_len)--;
 +	}
 +	spin_unlock(&bs->lock);
-+	
++
 +	/* and if we have rx_len as 0 then wakeup the process */
 +	if (bs->rx_len==0) {
 +		/* clean the transfers including all interrupts */
++		bs->cs &= (~SPI_CS_TA);
 +		bcm2708_wr(bs, SPI_CS,bs->cs);
 +		/* and wake up the thread to continue its work */
 +		complete(&bs->done);
 +	}
-+	
+ 
+-	if (xfer->delay_usecs)
+-		udelay(xfer->delay_usecs);
 +	/* return IRQ handled */
 +	return IRQ_HANDLED;
 +}
  
--	msg->actual_length += (xfer->len - bs->len);
--
+-	if (list_is_last(&xfer->transfer_list, &msg->transfers) ||
+-			xfer->cs_change) {
+-		/* clear TA and interrupt flags */
+-		bcm2708_wr(bs, SPI_CS, stp->cs);
 +static int bcm2708_transfer_one_message_irqdriven(struct spi_master *master,
 +						struct bcm2708_spi_state* stp,
 +						struct spi_transfer* xfer,
@@ -534,7 +492,7 @@ index 088cbaa..af83722 100644
 +	unsigned long iflags;
 +	/* increment type counter */
 +	bs->transfers_irqdriven++;
-+	
++
 +	/* store the data somewhere where the interrupt handler can see it */
 +	bs->tx_buf=xfer->tx_buf;
 +	bs->tx_len=xfer->len;
@@ -545,16 +503,17 @@ index 088cbaa..af83722 100644
 +	/* if we are not the last xfer - keep flags when done */
 +	if (!(flags | FLAGS_LAST_TRANSFER)) {
 +		bs->cs|=SPI_CS_INTR|SPI_CS_INTD;
-+	}
-+	
+ 	}
+ 
+-	msg->actual_length += (xfer->len - bs->len);
 +	/* set up the spinlock - do we really need to disable interrupts here?*/
 +	spin_lock_irqsave(&bs->lock,iflags);
-+	
++
 +	/* start by setting up the SPI controller */
 +	cs=stp->cs|SPI_CS_TA|SPI_CS_INTR|SPI_CS_INTD;
 +	bcm2708_wr(bs, SPI_CLK, stp->cdiv);
 +	bcm2708_wr(bs, SPI_CS, cs);
-+	
+ 
 +	/* fill as much of a buffer as possible */
 +	while ((bcm2708_rd(bs, SPI_CS)&SPI_CS_TXD)&&(bs->tx_len>0)) {
 +		/* store it if requested */
@@ -563,18 +522,18 @@ index 088cbaa..af83722 100644
 +		/* and decrement rx_len */
 +		bs->tx_len--;
 +	}
-+	
++
 +	/* now enable the interrupts after we have initialized completion */
 +	INIT_COMPLETION(bs->done);
 +	spin_unlock_irqrestore(&bs->lock,iflags);
-+	
++
 +	/* and wait for last interrupt to wake us up */
 +	if (wait_for_completion_timeout(&bs->done,
 +						msecs_to_jiffies(SPI_TIMEOUT_MS)) == 0) {
 +		dev_err(&master->dev, "transfer timed out\n");
 +		return -ETIMEDOUT;
-+	} 
-+	
++	}
++
 +	/* and return */
  	return 0;
  }
@@ -597,7 +556,7 @@ index 088cbaa..af83722 100644
 +	int tx_len=xfer->len;
 +	char* rx_buf=xfer->rx_buf;
 +	int rx_len=xfer->len;
-+	
++
 +	struct bcm2708_spi *bs = spi_master_get_devdata(master);
  
 -	spin_lock_irqsave(&bs->lock, flags);
@@ -607,7 +566,7 @@ index 088cbaa..af83722 100644
 -		spin_unlock_irqrestore(&bs->lock, flags);
 +	/* increment type counter */
 +	bs->transfers_polling++;
-+	
++
 +	/* start by setting up the SPI controller */
 +	cs=stp->cs|SPI_CS_TA;
 +	bcm2708_wr(bs, SPI_CLK, stp->cdiv);
@@ -653,7 +612,7 @@ index 088cbaa..af83722 100644
 +	int count=0;
 +	int transfers=0;
 +	list_for_each_entry(xfer, &msg->transfers, transfer_list) { transfers++; }
-+	
++
 +	/* loop all the transfer entries to check for transfer issues first */
 +	list_for_each_entry(xfer, &msg->transfers, transfer_list) {
 +		int can_dma=1;
@@ -661,17 +620,17 @@ index 088cbaa..af83722 100644
 +		/* increment count */
 +		count++;
 +		/* calculate flags */
-+		if (count==1) { 
++		if (count==1) {
 +			/* clear the queues */
 +			bcm2708_wr(bs, SPI_CS, bcm2708_rd(bs, SPI_CS) | SPI_CS_CLEAR_RX | SPI_CS_CLEAR_TX);
-+			flags|=FLAGS_FIRST_TRANSFER; 
++			flags|=FLAGS_FIRST_TRANSFER;
 +		}
 +		if (count==transfers) { flags|=FLAGS_LAST_TRANSFER; }
 +		/* check if elegable for DMA */
 +		if ((xfer->tx_buf)&&(!xfer->tx_dma)) { can_dma=0; }
 +		if ((xfer->rx_buf)&&(!xfer->rx_dma)) { can_dma=0; }
 +
-+		/* configure SPI - use global settings if not explicitly set */		
++		/* configure SPI - use global settings if not explicitly set */
 +		if (xfer->bits_per_word || xfer->speed_hz) {
 +			status = bcm2708_setup_state(spi->master, &spi->dev, &state,
 +						xfer->speed_hz ? xfer->speed_hz : spi->max_speed_hz,
@@ -742,39 +701,24 @@ index 088cbaa..af83722 100644
  }
  
  static int bcm2708_spi_setup(struct spi_device *spi)
-@@ -356,83 +710,42 @@ static int bcm2708_spi_setup(struct spi_device *spi)
- 	struct bcm2708_spi *bs = spi_master_get_devdata(spi->master);
+@@ -357,11 +712,13 @@ static int bcm2708_spi_setup(struct spi_device *spi)
  	struct bcm2708_spi_state *state;
  	int ret;
--
-+	
-+	// configure master 
-+	
+ 
++	// configure master
++
  	if (bs->stopping)
  		return -ESHUTDOWN;
--
-+	
+ 
  	if (!(spi->mode & SPI_NO_CS) &&
 -			(spi->chip_select > spi->master->num_chipselect)) {
 +		(spi->chip_select > spi->master->num_chipselect)) {
  		dev_dbg(&spi->dev,
  			"setup: invalid chipselect %u (%u defined)\n",
  			spi->chip_select, spi->master->num_chipselect);
- 		return -EINVAL;
+@@ -378,12 +735,11 @@ static int bcm2708_spi_setup(struct spi_device *spi)
  	}
--
-+	
- 	state = spi->controller_state;
- 	if (!state) {
- 		state = kzalloc(sizeof(*state), GFP_KERNEL);
- 		if (!state)
- 			return -ENOMEM;
--
-+		
- 		spi->controller_state = state;
- 	}
--
-+	
+ 
  	ret = bcm2708_setup_state(spi->master, &spi->dev, state,
 -		spi->max_speed_hz, spi->chip_select, spi->mode,
 -		spi->bits_per_word);
@@ -785,16 +729,12 @@ index 088cbaa..af83722 100644
  		spi->controller_state = NULL;
 -                return ret;
  	}
--
-+	
+ 
  	dev_dbg(&spi->dev,
- 		"setup: cd %d: %d Hz, bpw %u, mode 0x%x -> CS=%08x CDIV=%04x\n",
- 		spi->chip_select, spi->max_speed_hz, spi->bits_per_word,
- 		spi->mode, state->cs, state->cdiv);
--
--	return 0;
--}
--
+@@ -394,48 +750,6 @@ static int bcm2708_spi_setup(struct spi_device *spi)
+ 	return 0;
+ }
+ 
 -static int bcm2708_spi_transfer(struct spi_device *spi, struct spi_message *msg)
 -{
 -	struct bcm2708_spi *bs = spi_master_get_devdata(spi->master);
@@ -834,52 +774,21 @@ index 088cbaa..af83722 100644
 -	queue_work(bs->workq, &bs->work);
 -	spin_unlock_irqrestore(&bs->lock, flags);
 -
-+	
- 	return 0;
- }
- 
-@@ -451,92 +764,145 @@ static int __devinit bcm2708_spi_probe(struct platform_device *pdev)
+-	return 0;
+-}
+-
+ static void bcm2708_spi_cleanup(struct spi_device *spi)
+ {
+ 	if (spi->controller_state) {
+@@ -451,6 +765,7 @@ static int __devinit bcm2708_spi_probe(struct platform_device *pdev)
  	struct clk *clk;
  	struct spi_master *master;
  	struct bcm2708_spi *bs;
--
 +	const char* mode;
-+	
+ 
  	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
  	if (!regs) {
- 		dev_err(&pdev->dev, "could not get IO memory\n");
- 		return -ENXIO;
- 	}
--
-+	
- 	irq = platform_get_irq(pdev, 0);
- 	if (irq < 0) {
- 		dev_err(&pdev->dev, "could not get IRQ\n");
- 		return irq;
- 	}
--
-+	
- 	clk = clk_get(&pdev->dev, NULL);
- 	if (IS_ERR(clk)) {
- 		dev_err(&pdev->dev, "could not find clk: %ld\n", PTR_ERR(clk));
- 		return PTR_ERR(clk);
- 	}
--
-+	
- 	bcm2708_init_pinmode();
--
-+	
- 	master = spi_alloc_master(&pdev->dev, sizeof(*bs));
- 	if (!master) {
- 		dev_err(&pdev->dev, "spi_alloc_master() failed\n");
- 		goto out_clk_put;
- 	}
--
-+	
- 	/* the spi->mode bits understood by this driver: */
- 	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_CS_HIGH | SPI_NO_CS;
--
-+	
+@@ -484,40 +799,75 @@ static int __devinit bcm2708_spi_probe(struct platform_device *pdev)
  	master->bus_num = pdev->id;
  	master->num_chipselect = 3;
  	master->setup = bcm2708_spi_setup;
@@ -905,7 +814,7 @@ index 088cbaa..af83722 100644
 +	bs->transfers_polling=0;
 +	bs->transfers_irqdriven=0;
 +	bs->transfers_dmadriven=0;
-+	
++
 +	/* get Register Map */
  	bs->base = ioremap(regs->start, resource_size(regs));
  	if (!bs->base) {
@@ -924,20 +833,19 @@ index 088cbaa..af83722 100644
  	bs->stopping = false;
  
 -	err = request_irq(irq, bcm2708_spi_interrupt, 0, dev_name(&pdev->dev),
-+	err = request_irq(irq, 
++	err = request_irq(irq,
 +			bcm2708_transfer_one_message_irqdriven_irqhandler,
 +			0,
 +			dev_name(&pdev->dev),
- 			master);
- 	if (err) {
- 		dev_err(&pdev->dev, "could not request IRQ: %d\n", err);
--		goto out_workqueue;
++			master);
++	if (err) {
++		dev_err(&pdev->dev, "could not request IRQ: %d\n", err);
 +		goto out_iounmap;
- 	}
- 
++	}
++
 +	/* enable DMA */
 +	/* register memory buffer for DMA */
-+	if ((err=bcm2708_register_dmabuffer(pdev,bs))) 
++	if ((err=bcm2708_register_dmabuffer(pdev,bs)))
 +		goto out_free_irq;
 +	/* register channels and irq */
 +	if ((err=bcm2708_register_dma(pdev,
@@ -954,33 +862,31 @@ index 088cbaa..af83722 100644
 +		goto out_free_dma_rx;
 +	/* register IRQ for RX dma channel  */
 +	err = request_irq(bs->dma_rx.irq,
-+			bcm2708_transfer_one_message_dma_irqhandler, 
-+			0, 
++			bcm2708_transfer_one_message_dma_irqhandler,
++			0,
 +			dev_name(&pdev->dev),
-+			master);
-+	if (err) {
-+		dev_err(&pdev->dev, "could not request IRQ: %d\n", err);
+ 			master);
+ 	if (err) {
+ 		dev_err(&pdev->dev, "could not request IRQ: %d\n", err);
+-		goto out_workqueue;
 +		goto out_free_dma_tx;
-+	}
-+	
-+	
+ 	}
+ 
++
  	/* initialise the hardware */
  	clk_enable(clk);
  	bcm2708_wr(bs, SPI_CS, SPI_CS_REN | SPI_CS_CLEAR_RX | SPI_CS_CLEAR_TX);
--
-+	
+@@ -525,18 +875,35 @@ static int __devinit bcm2708_spi_probe(struct platform_device *pdev)
  	err = spi_register_master(master);
  	if (err) {
  		dev_err(&pdev->dev, "could not register SPI master: %d\n", err);
 -		goto out_free_irq;
 +		goto out_free_dma_irq;
  	}
--
-+	
+ 
  	dev_info(&pdev->dev, "SPI Controller at 0x%08lx (irq %d)\n",
  		(unsigned long)regs->start, irq);
--
-+	
+ 
 +	/* now send the message over SPI */
 +	switch (processmode) {
 +	case 0:  mode="polling"; break;
@@ -1010,7 +916,7 @@ index 088cbaa..af83722 100644
  out_iounmap:
  	iounmap(bs->base);
  out_master_put:
-@@ -551,19 +917,29 @@ static int __devexit bcm2708_spi_remove(struct platform_device *pdev)
+@@ -551,19 +918,29 @@ static int __devexit bcm2708_spi_remove(struct platform_device *pdev)
  	struct spi_master *master = platform_get_drvdata(pdev);
  	struct bcm2708_spi *bs = spi_master_get_devdata(master);
  
@@ -1019,7 +925,7 @@ index 088cbaa..af83722 100644
 +		bs->transfers_polling,
 +		bs->transfers_irqdriven,
 +		bs->transfers_dmadriven
-+		); 
++		);
 +
  	/* reset the hardware and block queue progress */
 -	spin_lock_irq(&bs->lock);
@@ -1044,18 +950,18 @@ index 088cbaa..af83722 100644
  	spi_unregister_master(master);
  
  	return 0;
-@@ -581,6 +957,10 @@ static struct platform_driver bcm2708_spi_driver = {
+@@ -581,6 +958,10 @@ static struct platform_driver bcm2708_spi_driver = {
  
  static int __init bcm2708_spi_init(void)
  {
 +        /* range check for processmode */
-+        if ((processmode<0) || (processmode>3)) { 
-+	        processmode=1; 
++        if ((processmode<0) || (processmode>3)) {
++	        processmode=1;
 +	}
  	return platform_driver_probe(&bcm2708_spi_driver, bcm2708_spi_probe);
  }
  module_init(bcm2708_spi_init);
-@@ -591,10 +971,9 @@ static void __exit bcm2708_spi_exit(void)
+@@ -591,10 +972,9 @@ static void __exit bcm2708_spi_exit(void)
  }
  module_exit(bcm2708_spi_exit);
  
