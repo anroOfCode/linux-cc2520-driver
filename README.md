@@ -48,19 +48,13 @@ to get a really low-latency SPI implementation.
 git clone git://github.com/raspberrypi/linux.git
 ```
 
-Next replace the current SPI driver with the driver provided lovingly by msperl:
-
-```
-wget https://raw.github.com/msperl/linux/73afedc07e3b94d8b9d588912faf26081178d268/drivers/spi/spi-bcm2708.c
-mv spi-bcm2708.c linux/drivers/spi
-```
-
 Now you need to patch two files in the linux tree. The first changes a small
 part of the device configuration to let the SPI driver know where it can find
-DMA-accessible memory. The second changes the spi driver to deassert the
-chip-select line. Not keeping the `SPI_CS_TA` flag active will have the SPI driver
-toggle the CS pin between transmissions. The CC2520 radio requires a SPI toggle
-to terminate command sequences that don't have a predetermined length.
+DMA-accessible memory. The second updates the spi driver to msperl's version and
+changes the spi driver to deassert the chip-select line. Not keeping the
+`SPI_CS_TA` flag active will have the SPI driver toggle the CS pin between
+transmissions. The CC2520 radio requires a SPI toggle to terminate command
+sequences that don't have a predetermined length.
 
     cd linux
     git apply ../linux-cc2520-driver/patches/bcm2708.patch
