@@ -30,17 +30,23 @@ int main(char ** argv, int argc)
 	txpower_data.txpower = CC2520_TXPOWER_0DBM;
 	ioctl(file_desc, CC2520_IO_RADIO_SET_TXPOWER, &txpower_data);
 
+	struct cc2520_set_lpl_data lpl_data = {0, 0, 0};
+	ioctl(file_desc, CC2520_IO_RADIO_SET_LPL, &lpl_data);
+
+	struct cc2520_set_print_messages_data print_data = {1};
+	ioctl(file_desc, CC2520_IO_RADIO_SET_PRINT, &print_data);
+
 	printf("Turning on the radio...\n");
 	ioctl(file_desc, CC2520_IO_RADIO_INIT, NULL);
 	ioctl(file_desc, CC2520_IO_RADIO_ON, NULL);
 
-	uint16_t i = 0;
+	uint16_t i = 1;
 
 	while (1) {
 		printf("Sending RCTL packet.\n");
-		// 8 Byte Header, 6 Byte Payload.
-		char test_msg[] = {0x0D, 0x41, 0x88, (char) i, 0x22, 0xFF, 0xFF, 0x00, 0x01, 0x06, (char) (i >> 8), (char) (i & 0xFF)};
-		result = write(file_desc, test_msg, 12);
+		char test_msg[] = {0x0F, 0x41, 0x88, (char) i, 0x22, 0x00, 0xFF, 0xFF, 0x01, 0x00, 0x3F, 0x06, (char) (i >> 8), (char) (i & 0xFF)};
+		result = write(file_desc, test_msg, 14);
+		i++;
 		usleep(250 * 1000);
 	}
 
