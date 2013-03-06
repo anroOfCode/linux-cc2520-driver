@@ -25,13 +25,13 @@ static size_t tx_pkt_len;
 static size_t rx_pkt_len;
 
 // Allows for only a single rx or tx
-// to occur simultaneously. 
+// to occur simultaneously.
 static struct semaphore tx_sem;
 static struct semaphore rx_sem;
 
 // Used by the character driver
 // to indicate when a blocking tx
-// or rx has completed. 
+// or rx has completed.
 static struct semaphore tx_done_sem;
 static struct semaphore rx_done_sem;
 
@@ -116,7 +116,7 @@ static ssize_t interface_write(
 	else {
 		result = down_interruptible(&tx_sem);
 		if (result)
-			return -ERESTARTSYS;	
+			return -ERESTARTSYS;
 	}
 	DBG((KERN_INFO "[cc2520] - write lock obtained.\n"));
 
@@ -134,12 +134,12 @@ static ssize_t interface_write(
 
 	// Step 3: Launch off into sending this packet,
 	// wait for an asynchronous callback to occur in
-	// the form of a semaphore. 
+	// the form of a semaphore.
 	interface_bottom->tx(tx_buf_c, pkt_len);
 	down(&tx_done_sem);
-		
+
 	// Step 4: Finally return and allow other callers to write
-	// packets. 
+	// packets.
 	DBG((KERN_INFO "[cc2520] - wrote %d bytes.\n", pkt_len));
 	up(&tx_sem);
 	return tx_result ? tx_result : pkt_len;
@@ -237,7 +237,7 @@ static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data)
 {
 	int result;
 	struct cc2520_set_channel_data ldata;
-	
+
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_channel_data));
 
 	if (result) {
@@ -306,11 +306,11 @@ static void interface_ioctl_set_lpl(struct cc2520_set_lpl_data *data)
 		return;
 	}
 
-	INFO((KERN_INFO "[cc2520] - setting lpl enabled: %d, window: %d, interval: %d\n", 
+	INFO((KERN_INFO "[cc2520] - setting lpl enabled: %d, window: %d, interval: %d\n",
 		ldata.enabled, ldata.window, ldata.interval));
 	cc2520_lpl_set_enabled(ldata.enabled);
 	cc2520_lpl_set_listen_length(ldata.window);
-	cc2520_lpl_set_wakeup_interval(ldata.interval);	
+	cc2520_lpl_set_wakeup_interval(ldata.interval);
 }
 
 static void interface_ioctl_set_csma(struct cc2520_set_csma_data *data)
@@ -333,12 +333,12 @@ static void interface_ioctl_set_csma(struct cc2520_set_csma_data *data)
 }
 
 /////////////////
-// init/free 
+// init/free
 ///////////////////
 
 int cc2520_interface_init()
 {
-	int result; 
+	int result;
 
 	interface_bottom->tx_done = cc2520_interface_tx_done;
 	interface_bottom->rx_done = cc2520_interface_rx_done;
@@ -354,8 +354,8 @@ int cc2520_interface_init()
 		result = -EFAULT;
 		goto error;
 	}
-		
-	rx_buf_c = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);    
+
+	rx_buf_c = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
 	if (!rx_buf_c) {
 		result = -EFAULT;
 		goto error;
@@ -369,7 +369,7 @@ int cc2520_interface_init()
 
 	if (rx_buf_c) {
 		kfree(rx_buf_c);
-		rx_buf_c = 0;		
+		rx_buf_c = 0;
 	}
 
 	if (tx_buf_c) {
@@ -398,7 +398,7 @@ void cc2520_interface_free()
 
 	if (rx_buf_c) {
 		kfree(rx_buf_c);
-		rx_buf_c = 0;		
+		rx_buf_c = 0;
 	}
 
 	if (tx_buf_c) {
