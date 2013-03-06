@@ -7,6 +7,8 @@
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
 
 #include "ioctl.h"
 #include "cc2520.h"
@@ -19,6 +21,11 @@
 struct cc2520_interface *interface_bottom;
 
 static unsigned int major;
+static dev_t char_d_mm;
+static struct cdev char_d_cdev;
+static struct class* cl;
+static struct device* de;
+
 static u8 *tx_buf_c;
 static u8 *rx_buf_c;
 static size_t tx_pkt_len;
@@ -361,8 +368,37 @@ int cc2520_interface_init()
 		goto error;
 	}
 
-	major = register_chrdev(0, cc2520_name, &fops);
+	// Allocate a major number for this device
+	result = alloc_chrdev_region(&char_d_mm, 0, 1, cc2520_name);
+	if (result < 0) {
+		printk(KERN_INFO "[cc2520] - Could not allocate a major number\n");
+		goto error;
+	}
+	major = MAJOR(char_d_mm);
+
+	// Register the character device
+	cdev_init(&char_d_cdev, &fops);
+	char_d_cdev.owner = THIS_MODULE;
+	result = cdev_add(&char_d_cdev, char_d_mm, 1);
+	if (result < 0) {
+		printk(KERN_INFO "[cc2520] - Unable to register char dev\n");
+		goto error;
+	}
 	printk(KERN_INFO "[cc2520] - Char interface registered on %d\n", major);
+
+	cl = class_create(THIS_MODULE, "cc2520");
+	if (cl == NULL) {
+		printk(KERN_INFO "[cc2520] - Could not create device class\n");
+		goto error;
+	}
+
+	// Create the device in /dev/radio
+	de = device_create(cl, NULL, char_d_mm, NULL, "radio");
+	if (de == NULL) {
+		printk(KERN_INFO "[cc2520] - Could not create device\n");
+		goto error;
+	}
+
 	return 0;
 
 	error:
@@ -394,7 +430,13 @@ void cc2520_interface_free()
 		printk("[cc2520] - critical error occurred on free.");
 	}
 
-	unregister_chrdev(major, cc2520_name);
+	cdev_del(&char_d_cdev);
+	unregister_chrdev(char_d_mm, cc2520_name);
+	device_destroy(cl, char_d_mm);
+	class_destroy(cl);
+
+
+	printk(KERN_INFO "[cc2520] - Removed character device\n");
 
 	if (rx_buf_c) {
 		kfree(rx_buf_c);
