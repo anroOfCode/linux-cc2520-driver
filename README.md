@@ -155,35 +155,11 @@ gcc read.c -o read
 
 **To Load the Module**
 
-I've included two utilities to make things a little easier.
-These utilities do really really basic stuff:
+Simply run
 
-  * <code>setup.sh</code> - Installs a character driver interface and sets proper
-    permissions for use.
-  * <code>reload.sh</code> - Removes the module from the system if loaded, and reloads
-    it.
+    sudo ./reload.sh
 
-**NOTE:** The setup.sh script assumes the character driver major number to be 251,
-but that might be different on your system. After running <code>reload.sh</code>
-check <code>/var/log/kern.log</code> for the following lines to determine what
-major number your driver has been assigned:
-
-```
-Jan 11 00:29:11 raspberrypi kernel: [ 6291.240366] loading CC2520 Kernel Module v0.01...
-Jan 11 00:29:11 raspberrypi kernel: [ 6291.240491] [cc2520] - Driver [spidev] already registered for spi0.0. Nuking from orbit.
-Jan 11 00:29:11 raspberrypi kernel: [ 6291.243147] spi spi0.0: setup: cd 0: 500000 Hz, bpw 8, mode 0x0 -> CS=00000000 CDIV=0200
-Jan 11 00:29:11 raspberrypi kernel: [ 6291.243178] spi spi0.0: setup mode 0, 8 bits/w, 500000 Hz max --> 0
-Jan 11 00:29:11 raspberrypi kernel: [ 6291.243306] bcm2708_spi bcm2708_spi.0: registered child spi0.0
-Jan 11 00:29:11 raspberrypi kernel: [ 6291.243359] [cc2520] - Inserting SPI protocol driver.
-Jan 11 00:29:11 raspberrypi kernel: [ 6291.243549] [cc2520] - Char interface registered on 251
-```
-
-So to get things up and running just go ahead and run them both:
-
-```
-sudo ./reload.sh
-sudo ./setup.sh
-```
+in the same directory as cc2520.ko.
 
 **To Test the Driver**
 
