@@ -82,6 +82,7 @@ static void cc2520_radio_continueTx(void *arg);
 static void cc2520_radio_completeTx(void);
 
 static void cc2520_radio_flushRx(void);
+static void cc2520_radio_continueFlushRx(void *arg);
 static void cc2520_radio_completeFlushRx(void *arg);
 static void cc2520_radio_flushTx(void);
 static void cc2520_radio_completeFlushTx(void *arg);
@@ -641,10 +642,32 @@ static void cc2520_radio_flushRx()
 
 	int status;
 
-	INFO((KERN_INFO "[cc2520] - oversized packet received. clearing.\n"));
+	INFO((KERN_INFO "[cc2520] - flush RX FIFO (part 1).\n"));
 
-	//tsfer1.tx_buf = tx_buf;
-	//tsfer1.rx_buf = rx_buf;
+	rx_tsfer.len = 0;
+	rx_tsfer.cs_change = 1;
+	rx_out_buf[rx_tsfer.len++] = CC2520_CMD_SFLUSHRX;
+
+	spi_message_init(&rx_msg);
+	rx_msg.complete = cc2520_radio_continueFlushRx;
+	rx_msg.context = NULL;
+
+	spi_message_add_tail(&rx_tsfer, &rx_msg);
+
+	status = spi_async(state.spi_device, &rx_msg);
+}
+
+// Flush RX twice. This is due to Errata Bug 1 and to try to fix an issue where
+// the radio goes into a state where it no longer receives any packets after
+// clearing the RX FIFO when a packet arrives at the same time a packet
+// is being processed.
+// Also, both the TinyOS and Contiki implementations do this.
+static void cc2520_radio_continueFlushRx(void* arg)
+{
+	int status;
+
+	INFO((KERN_INFO "[cc2520] - flush RX FIFO (part 2).\n"));
+
 	rx_tsfer.len = 0;
 	rx_tsfer.cs_change = 1;
 	rx_out_buf[rx_tsfer.len++] = CC2520_CMD_SFLUSHRX;
