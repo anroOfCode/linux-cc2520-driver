@@ -2,6 +2,7 @@
 #include <linux/kernel.h>
 #include "packet.h"
 #include "cc2520.h"
+#include "debug.h"
 
 bool cc2520_packet_requires_ack_reply(u8 *buf)
 {
@@ -89,8 +90,8 @@ u64 cc2520_packet_get_src(u8 *buf)
 		src_addr_offset += 10;
 	}
 	// WARNING: this is a weird edge case from the
-	// 802.15.4 spec. 
-	// NOTE: Assuming we're on LE arch. 
+	// 802.15.4 spec.
+	// NOTE: Assuming we're on LE arch.
 	else if (pan_compression) {
 		src_addr_offset += 2;
 	}
@@ -108,7 +109,7 @@ u64 cc2520_packet_get_src(u8 *buf)
 		memcpy(&ret, buf + src_addr_offset, 8);
 	}
 
-	INFO((KERN_INFO "[cc2520] - src_mode: %d dest_mode: %d pan_comp: %d src_addr_offset: %d\n", 
+	DBG((KERN_INFO "[cc2520] - src_mode: %d dest_mode: %d pan_comp: %d src_addr_offset: %d\n",
 		src_addr_mode, dest_addr_mode, pan_compression, src_addr_offset));
 
 	return ret;

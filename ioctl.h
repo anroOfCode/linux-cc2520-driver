@@ -39,7 +39,7 @@ struct cc2520_set_csma_data {
 };
 
 struct cc2520_set_print_messages_data {
-	bool enabled;
+	u8 debug_level;
 };
 
 // Possible TX Powers:

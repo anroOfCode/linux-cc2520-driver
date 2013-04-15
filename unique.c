@@ -7,6 +7,7 @@
 #include "unique.h"
 #include "packet.h"
 #include "cc2520.h"
+#include "debug.h"
 
 struct node_list{
 	struct list_head list;
@@ -66,7 +67,7 @@ static void cc2520_unique_rx_done(u8 *buf, u8 len)
 
 	dsn = cc2520_packet_get_header(buf)->dsn;
 	src = cc2520_packet_get_src(buf);
-	
+
 	found = false;
 	drop = false;
 

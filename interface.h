@@ -1,5 +1,5 @@
 #ifndef INTERFACE_H
-#define iNTERFACE_H
+#define INTERFACE_H
 
 // Interface
 int cc2520_interface_init(void);

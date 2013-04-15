@@ -1,4 +1,4 @@
-#include <linux/module.h>  
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
@@ -13,6 +13,7 @@
 #include "cc2520.h"
 #include "radio.h"
 #include "platform.h"
+#include "debug.h"
 
 //////////////////////////
 // SPI Stuff
@@ -28,23 +29,23 @@ static int cc2520_spi_add_to_bus(void)
 
     spi_master = spi_busnum_to_master(SPI_BUS);
     if (!spi_master) {
-        printk(KERN_ALERT "[cc2520] - spi_busnum_to_master(%d) returned NULL\n",
-            SPI_BUS);
-        printk(KERN_ALERT "[cc2520] - Missing modprobe spi-bcm2708?\n");
+        ERR((KERN_ALERT "[cc2520] - spi_busnum_to_master(%d) returned NULL\n",
+            SPI_BUS));
+        ERR((KERN_ALERT "[cc2520] - Missing modprobe spi-bcm2708?\n"));
         return -1;
     }
 
     spi_device = spi_alloc_device(spi_master);
     if (!spi_device) {
         put_device(&spi_master->dev);
-        printk(KERN_ALERT "[cc2520] - spi_alloc_device() failed\n");
+        ERR((KERN_ALERT "[cc2520] - spi_alloc_device() failed\n"));
         return -1;
     }
 
     spi_device->chip_select = SPI_BUS_CS0;
 
     /* Check whether this SPI bus.cs is already claimed */
-    snprintf(buff, sizeof(buff), "%s.%u", 
+    snprintf(buff, sizeof(buff), "%s.%u",
             dev_name(&spi_device->master->dev),
             spi_device->chip_select);
 
@@ -52,13 +53,15 @@ static int cc2520_spi_add_to_bus(void)
 
     if (pdev) {
         if (pdev->driver != NULL) {
-            printk(KERN_INFO
-                "[cc2520] - Driver [%s] already registered for %s. Nuking from orbit.\n",
-                pdev->driver->name, buff);            
+            ERR((KERN_INFO
+                "[cc2520] - Driver [%s] already registered for %s. \
+Nuking from orbit.\n",
+                pdev->driver->name, buff));
         }
         else {
-            printk(KERN_INFO
-                "[cc2520] - Previous driver registered with no loaded module. Nuking from orbit.\n");
+            ERR((KERN_INFO
+                "[cc2520] - Previous driver registered with no loaded module. \
+Nuking from orbit.\n"));
         }
 
         device_unregister(pdev);
@@ -73,12 +76,12 @@ static int cc2520_spi_add_to_bus(void)
     spi_device->controller_data = NULL;
     strlcpy(spi_device->modalias, cc2520_name, SPI_NAME_SIZE);
 
-    status = spi_add_device(spi_device);        
-    if (status < 0) {   
+    status = spi_add_device(spi_device);
+    if (status < 0) {
         spi_dev_put(spi_device);
-        printk(KERN_ALERT "[cc2520] - spi_add_device() failed: %d\n", 
-            status);        
-    }               
+        ERR((KERN_ALERT "[cc2520] - spi_add_device() failed: %d\n",
+            status));
+    }
 
     put_device(&spi_master->dev);
     return status;
@@ -86,14 +89,14 @@ static int cc2520_spi_add_to_bus(void)
 
 static int cc2520_spi_probe(struct spi_device *spi_device)
 {
-    printk(KERN_INFO "[cc2520] - Inserting SPI protocol driver.\n");
+    ERR((KERN_INFO "[cc2520] - Inserting SPI protocol driver.\n"));
     state.spi_device = spi_device;
     return 0;
 }
 
 static int cc2520_spi_remove(struct spi_device *spi_device)
 {
-    printk(KERN_INFO "[cc2520] - Removing SPI protocol driver.");
+    ERR((KERN_INFO "[cc2520] - Removing SPI protocol driver."));
     state.spi_device = NULL;
     return 0;
 }
@@ -118,7 +121,7 @@ int cc2520_plat_spi_init()
     result = spi_register_driver(&cc2520_spi_driver);
     if (result < 0)
         goto error;
-    
+
     return 0;
 
     error:
@@ -138,7 +141,7 @@ void cc2520_plat_spi_free()
 // Interrupt Handles
 /////////////////////////
 
-static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id) 
+static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id)
 {
     int gpio_val;
     struct timespec ts;
@@ -157,11 +160,11 @@ static irqreturn_t cc2520_sfd_handler(int irq, void *dev_id)
     return IRQ_HANDLED;
 }
 
-static irqreturn_t cc2520_fifop_handler(int irq, void *dev_id) 
+static irqreturn_t cc2520_fifop_handler(int irq, void *dev_id)
 {
     if (gpio_get_value(CC2520_FIFOP) == 1) {
         DBG((KERN_INFO "[cc2520] - fifop interrupt occurred\n"));
-        cc2520_radio_fifop_occurred();       
+        cc2520_radio_fifop_occurred();
     }
     return IRQ_HANDLED;
 }
@@ -216,10 +219,10 @@ int cc2520_plat_gpio_init()
     }
 
     err = request_irq(
-        irq, 
-        cc2520_fifop_handler, 
-        IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, 
-        "fifopHandler", 
+        irq,
+        cc2520_fifop_handler,
+        IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+        "fifopHandler",
         NULL
     );
     if (err)
@@ -234,10 +237,10 @@ int cc2520_plat_gpio_init()
     }
 
     err = request_irq(
-        irq, 
-        cc2520_sfd_handler, 
-        IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, 
-        "sfdHandler", 
+        irq,
+        cc2520_sfd_handler,
+        IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+        "sfdHandler",
         NULL
     );
     if (err)
@@ -247,7 +250,7 @@ int cc2520_plat_gpio_init()
     return err;
 
     fail:
-        printk(KERN_ALERT "[cc2520] - failed to init GPIOs\n");
+        ERR((KERN_ALERT "[cc2520] - failed to init GPIOs\n"));
         cc2520_plat_gpio_free();
         return err;
 }

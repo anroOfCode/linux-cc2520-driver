@@ -6,13 +6,6 @@
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
 
-// Used to prevent timing-critical
-// operations from being interfered with
-// by the printk function.
-//#define DBG(x) printk x
-#define DBG(x) do {} while (0)
-#define ERR(x) printk x
-#define INFO(x) printk x
 
 //////////////////////////////
 // Configuration for driver
@@ -71,14 +64,14 @@
 #define CC2520_DEF_EXT_ADDR 0x01
 
 // All these timing parameters are in microseconds.
-#define CC2520_DEF_ACK_TIMEOUT 2500 
+#define CC2520_DEF_ACK_TIMEOUT 2500
 #define CC2520_DEF_MIN_BACKOFF 320
 #define CC2520_DEF_INIT_BACKOFF 4960
 #define CC2520_DEF_CONG_BACKOFF 2240
 #define CC2520_DEF_CSMA_ENABLED true
 
 // We go for around a 1% duty cycle of the radio
-// for LPL stuff. 
+// for LPL stuff.
 #define CC2520_DEF_LPL_WAKEUP_INTERVAL 512000
 #define CC2520_DEF_LPL_LISTEN_WINDOW 5120
 #define CC2520_DEF_LPL_ENABLED true
@@ -102,9 +95,9 @@ struct cc2520_interface {
     // ALWAYS the length of the packet,
     // including the length byte itself,
     // excluding the automatically generated
-    // FCS bytes. 
+    // FCS bytes.
     // The packet should start with a valid
-    // 802.15.4 length. 
+    // 802.15.4 length.
     int (*tx)(u8 *buf, u8 len);
     void (*tx_done)(u8 status);
 
@@ -131,7 +124,7 @@ struct cc2520_state {
 	// Hardware
 	struct cc2520_gpio_state gpios;
 	struct spi_device *spi_device;
-    
+
     // CURRENTLY UNUSED:
 	struct work_struct work;    /* for deferred work */
     struct workqueue_struct *wq;
