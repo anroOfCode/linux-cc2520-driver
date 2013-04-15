@@ -1,4 +1,4 @@
-#include <linux/module.h>  
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
@@ -171,8 +171,8 @@ int cc2520_radio_init()
 		result = -EFAULT;
 		goto error;
 	}
-		
-	rx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);    
+
+	rx_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);
 	if (!rx_buf) {
 		result = -EFAULT;
 		goto error;
@@ -183,8 +183,8 @@ int cc2520_radio_init()
 		result = -EFAULT;
 		goto error;
 	}
-		
-	rx_in_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);    
+
+	rx_in_buf = kmalloc(SPI_BUFF_SIZE, GFP_KERNEL | GFP_DMA);
 	if (!rx_in_buf) {
 		result = -EFAULT;
 		goto error;
@@ -195,8 +195,8 @@ int cc2520_radio_init()
 		result = -EFAULT;
 		goto error;
 	}
-		
-	rx_buf_r = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);    
+
+	rx_buf_r = kmalloc(PKT_BUFF_SIZE, GFP_KERNEL);
 	if (!rx_buf_r) {
 		result = -EFAULT;
 		goto error;
@@ -207,7 +207,7 @@ int cc2520_radio_init()
 	error:
 		if (rx_buf_r) {
 			kfree(rx_buf_r);
-			rx_buf_r = NULL;     
+			rx_buf_r = NULL;
 		}
 
 		if (tx_buf_r) {
@@ -296,7 +296,7 @@ void cc2520_radio_start()
 	cc2520_radio_writeRegister(CC2520_FIFOPCTRL, cc2520_fifopctrl_default.value);
 	cc2520_radio_writeRegister(CC2520_FRMCTRL0, cc2520_frmctrl0_default.value);
 	cc2520_radio_writeRegister(CC2520_FRMFILT1, cc2520_frmfilt1_default.value);
-	cc2520_radio_writeRegister(CC2520_SRCMATCH, cc2520_srcmatch_default.value);   
+	cc2520_radio_writeRegister(CC2520_SRCMATCH, cc2520_srcmatch_default.value);
 	cc2520_radio_unlock();
 }
 
@@ -382,7 +382,7 @@ void cc2520_radio_sfd_occurred(u64 nano_timestamp, u8 is_high)
 		// SFD falling indicates TX completion
 		// if we're currently in TX mode, unlock.
 		if (cc2520_radio_tx_unlock_sfd()) {
-			cc2520_radio_completeTx();				
+			cc2520_radio_completeTx();
 		}
 	}
 }
@@ -400,7 +400,7 @@ void cc2520_radio_fifop_occurred()
 		pending_rx = true;
 		spin_unlock_irqrestore(&pending_rx_sl, flags);;
 		cc2520_radio_beginRx();
-	}	
+	}
 }
 
 void cc2520_radio_reset(void)
@@ -453,7 +453,7 @@ static void cc2520_radio_beginTx()
 
 	spi_message_add_tail(&tsfer1, &msg);
 
-	status = spi_async(state.spi_device, &msg); 
+	status = spi_async(state.spi_device, &msg);
 }
 
 // Tx Part 2: Check for missed RX transmission
@@ -477,14 +477,14 @@ static void cc2520_radio_continueTx_check(void *arg)
 	}
 
 	tx_buf[buf_offset + tsfer1.len++] = CC2520_CMD_TXBUF;
-	
+
 	// Length + FCF
 	for (i = 0; i < 3; i++)
 		tx_buf[buf_offset + tsfer1.len++] = tx_buf_r[i];
 	buf_offset += tsfer1.len;
 
 	tsfer2.tx_buf = tx_buf + buf_offset;
-	tsfer2.rx_buf = rx_buf + buf_offset; 
+	tsfer2.rx_buf = rx_buf + buf_offset;
 	tsfer2.len = 0;
 	tsfer2.cs_change = 1;
 	tx_buf[buf_offset + tsfer2.len++] = CC2520_CMD_STXON;
@@ -493,7 +493,7 @@ static void cc2520_radio_continueTx_check(void *arg)
 	// We're keeping these two SPI transactions separated
 	// in case we later want to encode timestamp
 	// information in the packet itself after seeing SFD
-	// flag. 
+	// flag.
 	if (tx_buf_r_len > 3) {
 		tsfer3.tx_buf = tx_buf + buf_offset;
 		tsfer3.rx_buf = rx_buf + buf_offset;
@@ -501,9 +501,9 @@ static void cc2520_radio_continueTx_check(void *arg)
 		tsfer3.cs_change = 1;
 		tx_buf[buf_offset + tsfer3.len++] = CC2520_CMD_TXBUF;
 		for (i = 3; i < tx_buf_r_len; i++)
-			tx_buf[buf_offset + tsfer3.len++] = tx_buf_r[i];	
+			tx_buf[buf_offset + tsfer3.len++] = tx_buf_r[i];
 
-		buf_offset += tsfer3.len;	
+		buf_offset += tsfer3.len;
 	}
 
 	tsfer4.tx_buf = tx_buf + buf_offset;
@@ -525,20 +525,20 @@ static void cc2520_radio_continueTx_check(void *arg)
 
 	spi_message_add_tail(&tsfer4, &msg);
 
-	status = spi_async(state.spi_device, &msg); 	
+	status = spi_async(state.spi_device, &msg);
 }
 
 static void cc2520_radio_continueTx(void *arg)
-{   	
+{
 	DBG((KERN_INFO "[cc2520] - tx spi write callback complete.\n"));
 
 	if ((((u8*)tsfer4.rx_buf)[1] & CC2520_TX_UNDERFLOW) > 0) {
-		cc2520_radio_flushTx();		
+		cc2520_radio_flushTx();
 	}
 	else if (cc2520_radio_tx_unlock_spi()) {
 		// To prevent race conditions between the SPI engine and the
 		// SFD interrupt we unlock in two stages. If this is the last
-		// thing to complete we signal TX complete. 
+		// thing to complete we signal TX complete.
 		cc2520_radio_completeTx();
 	}
 }
@@ -562,21 +562,21 @@ static void cc2520_radio_flushTx()
 
 	spi_message_add_tail(&tsfer1, &msg);
 
-	status = spi_async(state.spi_device, &msg); 
+	status = spi_async(state.spi_device, &msg);
 }
 
 static void cc2520_radio_completeFlushTx(void *arg)
 {
 	cc2520_radio_unlock();
 	DBG((KERN_INFO "[cc2520] - write op complete.\n"));
-	radio_top->tx_done(-CC2520_TX_FAILED);		
+	radio_top->tx_done(-CC2520_TX_FAILED);
 }
 
 static void cc2520_radio_completeTx()
 {
 	cc2520_radio_unlock();
 	DBG((KERN_INFO "[cc2520] - write op complete.\n"));
-	radio_top->tx_done(CC2520_TX_SUCCESS);		
+	radio_top->tx_done(CC2520_TX_SUCCESS);
 }
 
 //////////////////////////////
@@ -602,7 +602,7 @@ static void cc2520_radio_beginRx()
 	rx_msg.context = NULL;
 	spi_message_add_tail(&rx_tsfer, &rx_msg);
 
-	status = spi_async(state.spi_device, &rx_msg);   
+	status = spi_async(state.spi_device, &rx_msg);
 }
 
 static void cc2520_radio_continueRx(void *arg)
@@ -622,18 +622,18 @@ static void cc2520_radio_continueRx(void *arg)
 	else {
 		rx_tsfer.len = 0;
 		rx_out_buf[rx_tsfer.len++] = CC2520_CMD_RXBUF;
-		for (i = 0; i < len; i++) 
+		for (i = 0; i < len; i++)
 			rx_out_buf[rx_tsfer.len++] = 0;
 
 		rx_tsfer.cs_change = 1;
 
 		spi_message_init(&rx_msg);
 		rx_msg.complete = cc2520_radio_finishRx;
-		// Platform dependent? 
+		// Platform dependent?
 		rx_msg.context = (void*)len;
 		spi_message_add_tail(&rx_tsfer, &rx_msg);
 
-		status = spi_async(state.spi_device, &rx_msg);  
+		status = spi_async(state.spi_device, &rx_msg);
 	}
 }
 
@@ -678,7 +678,7 @@ static void cc2520_radio_continueFlushRx(void* arg)
 
 	spi_message_add_tail(&rx_tsfer, &rx_msg);
 
-	status = spi_async(state.spi_device, &rx_msg); 
+	status = spi_async(state.spi_device, &rx_msg);
 }
 
 static void cc2520_radio_completeFlushRx(void *arg)
@@ -696,19 +696,19 @@ static void cc2520_radio_finishRx(void *arg)
 
 	// we keep a lock on the RX buffer separately
 	// to allow for another rx packet to pile up
-	// behind the current one. 
+	// behind the current one.
 	spin_lock(&rx_buf_sl);
 
 	// Note: we place the len at the beginning
 	// of the packet to make the interface symmetric
-	// with the TX interface. 
+	// with the TX interface.
 	rx_buf_r[0] = len;
 
 	// Make sure to ignore the command return byte.
 	memcpy(rx_buf_r + 1, rx_in_buf + 1, len);
 
 	// Pass length of entire buffer to
-	// upper layers. 
+	// upper layers.
 	radio_top->rx_done(rx_buf_r, len + 1);
 
 	DBG((KERN_INFO "[cc2520] - Read %d bytes from radio.\n", len));
@@ -761,7 +761,7 @@ static void cc2520_radio_writeMemory(u16 mem_addr, u8 *value, u8 len)
 	msg.context = NULL;
 	spi_message_add_tail(&tsfer, &msg);
 
-	status = spi_sync(state.spi_device, &msg);   
+	status = spi_sync(state.spi_device, &msg);
 }
 
 static void cc2520_radio_writeRegister(u8 reg, u8 value)
@@ -807,7 +807,7 @@ static cc2520_status_t cc2520_radio_strobe(u8 cmd)
 
 	spi_message_init(&msg);
 	msg.context = NULL;
-	spi_message_add_tail(&tsfer, &msg);    
+	spi_message_add_tail(&tsfer, &msg);
 
 	status = spi_sync(state.spi_device, &msg);
 
