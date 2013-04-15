@@ -6,6 +6,7 @@
 #include "lpl.h"
 #include "packet.h"
 #include "cc2520.h"
+#include "debug.h"
 
 struct cc2520_interface *lpl_top;
 struct cc2520_interface *lpl_bottom;
@@ -125,7 +126,7 @@ static void cc2520_lpl_tx_done(u8 status)
 			}
 			else {
 				spin_unlock_irqrestore(&state_sl, flags);
-				//printk(KERN_INFO "[cc2520] - lpl retransmit.\n");
+				DBG((KERN_INFO "[cc2520] - lpl retransmit.\n"));
 				lpl_bottom->tx(cur_tx_buf, cur_tx_len);
 			}
 		}
@@ -138,7 +139,7 @@ static void cc2520_lpl_tx_done(u8 status)
 			else {
 				spin_unlock_irqrestore(&state_sl, flags);
 				lpl_bottom->tx(cur_tx_buf, cur_tx_len);
-			}			
+			}
 		}
 	}
 	else {
