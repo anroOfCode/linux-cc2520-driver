@@ -17,6 +17,8 @@
 #include "cc2520.h"
 #include "radio.h"
 #include "radio_config.h"
+#include "interface.h"
+#include "debug.h"
 
 static u16 short_addr;
 static u64 extended_addr;

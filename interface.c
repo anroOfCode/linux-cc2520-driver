@@ -17,6 +17,7 @@
 #include "sack.h"
 #include "csma.h"
 #include "lpl.h"
+#include "debug.h"
 
 struct cc2520_interface *interface_bottom;
 
@@ -44,8 +45,6 @@ static struct semaphore rx_done_sem;
 
 // Results, stored by the callbacks
 static int tx_result;
-
-static bool print_messages = false;
 
 DECLARE_WAIT_QUEUE_HEAD(cc2520_interface_read_queue);
 
@@ -135,7 +134,7 @@ static ssize_t interface_write(
 	}
 	tx_pkt_len = pkt_len;
 
-	if (print_messages) {
+	if (debug_print >= DEBUG_PRINT_DBG) {
 		interface_print_to_log(tx_buf_c, pkt_len, true);
 	}
 
@@ -163,7 +162,7 @@ static ssize_t interface_read(struct file *filp, char __user *buf, size_t count,
 	if (copy_to_user(buf, rx_buf_c, rx_pkt_len))
 		return -EFAULT;
 
-	if (print_messages) {
+	if (debug_print >= DEBUG_PRINT_DBG) {
 		interface_print_to_log(rx_buf_c, rx_pkt_len, false);
 	}
 
@@ -176,15 +175,15 @@ static long interface_ioctl(struct file *file,
 {
 	switch (ioctl_num) {
 		case CC2520_IO_RADIO_INIT:
-			printk(KERN_INFO "[cc2520] - radio starting\n");
+			INFO((KERN_INFO "[cc2520] - radio starting\n"));
 			cc2520_radio_start();
 			break;
 		case CC2520_IO_RADIO_ON:
-			printk(KERN_INFO "[cc2520] - radio turning on\n");
+			INFO((KERN_INFO "[cc2520] - radio turning on\n"));
 			cc2520_radio_on();
 			break;
 		case CC2520_IO_RADIO_OFF:
-			printk(KERN_INFO "[cc2520] - radio turning off\n");
+			INFO((KERN_INFO "[cc2520] - radio turning off\n"));
 			cc2520_radio_off();
 			break;
 		case CC2520_IO_RADIO_SET_CHANNEL:
@@ -236,10 +235,11 @@ static void interface_ioctl_set_print(struct cc2520_set_print_messages_data *dat
 		return;
 	}
 
-	INFO((KERN_INFO "[cc2520] - setting debug message print: %d", ldata.enabled));
+	INFO((KERN_INFO "[cc2520] - setting debug message print: %i", ldata.debug_level));
 
-	print_messages = ldata.enabled;
+	debug_print = ldata.debug_level;
 }
+
 static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data)
 {
 	int result;
@@ -248,11 +248,11 @@ static void interface_ioctl_set_channel(struct cc2520_set_channel_data *data)
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_channel_data));
 
 	if (result) {
-		printk(KERN_ALERT "[cc2520] - an error occurred setting the channel\n");
+		ERR((KERN_ALERT "[cc2520] - an error occurred setting the channel\n"));
 		return;
 	}
 
-	printk(KERN_INFO "[cc2520] - Setting channel to %d\n", ldata.channel);
+	INFO((KERN_INFO "[cc2520] - Setting channel to %d\n", ldata.channel));
 	cc2520_radio_set_channel(ldata.channel);
 }
 
@@ -263,12 +263,12 @@ static void interface_ioctl_set_address(struct cc2520_set_address_data *data)
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_address_data));
 
 	if (result) {
-		printk(KERN_ALERT "[cc2520] - an error occurred setting the address\n");
+		ERR((KERN_ALERT "[cc2520] - an error occurred setting the address\n"));
 		return;
 	}
 
-	printk(KERN_INFO "[cc2520] - setting addr: %d ext_addr: %lld pan_id: %d\n",
-		ldata.short_addr, ldata.extended_addr, ldata.pan_id);
+	INFO((KERN_INFO "[cc2520] - setting addr: %d ext_addr: %lld pan_id: %d\n",
+		ldata.short_addr, ldata.extended_addr, ldata.pan_id));
 	cc2520_radio_set_address(ldata.short_addr, ldata.extended_addr, ldata.pan_id);
 }
 
@@ -279,11 +279,11 @@ static void interface_ioctl_set_txpower(struct cc2520_set_txpower_data *data)
 	result = copy_from_user(&ldata, data, sizeof(struct cc2520_set_txpower_data));
 
 	if (result) {
-		printk(KERN_ALERT "[cc2520] - an error occurred setting the txpower\n");
+		ERR((KERN_ALERT "[cc2520] - an error occurred setting the txpower\n"));
 		return;
 	}
 
-	printk(KERN_INFO "[cc2520] - setting txpower: %d\n", ldata.txpower);
+	INFO((KERN_INFO "[cc2520] - setting txpower: %d\n", ldata.txpower));
 	cc2520_radio_set_txpower(ldata.txpower);
 }
 
@@ -371,7 +371,7 @@ int cc2520_interface_init()
 	// Allocate a major number for this device
 	result = alloc_chrdev_region(&char_d_mm, 0, 1, cc2520_name);
 	if (result < 0) {
-		printk(KERN_INFO "[cc2520] - Could not allocate a major number\n");
+		ERR((KERN_INFO "[cc2520] - Could not allocate a major number\n"));
 		goto error;
 	}
 	major = MAJOR(char_d_mm);
@@ -381,21 +381,21 @@ int cc2520_interface_init()
 	char_d_cdev.owner = THIS_MODULE;
 	result = cdev_add(&char_d_cdev, char_d_mm, 1);
 	if (result < 0) {
-		printk(KERN_INFO "[cc2520] - Unable to register char dev\n");
+		ERR((KERN_INFO "[cc2520] - Unable to register char dev\n"));
 		goto error;
 	}
-	printk(KERN_INFO "[cc2520] - Char interface registered on %d\n", major);
+	INFO((KERN_INFO "[cc2520] - Char interface registered on %d\n", major));
 
 	cl = class_create(THIS_MODULE, "cc2520");
 	if (cl == NULL) {
-		printk(KERN_INFO "[cc2520] - Could not create device class\n");
+		ERR((KERN_INFO "[cc2520] - Could not create device class\n"));
 		goto error;
 	}
 
 	// Create the device in /dev/radio
 	de = device_create(cl, NULL, char_d_mm, NULL, "radio");
 	if (de == NULL) {
-		printk(KERN_INFO "[cc2520] - Could not create device\n");
+		ERR((KERN_INFO "[cc2520] - Could not create device\n"));
 		goto error;
 	}
 
@@ -422,12 +422,12 @@ void cc2520_interface_free()
 
 	result = down_interruptible(&tx_sem);
 	if (result) {
-		printk("[cc2520] - critical error occurred on free.");
+		ERR(("[cc2520] - critical error occurred on free."));
 	}
 
 	result = down_interruptible(&rx_sem);
 	if (result) {
-		printk("[cc2520] - critical error occurred on free.");
+		ERR(("[cc2520] - critical error occurred on free."));
 	}
 
 	cdev_del(&char_d_cdev);
@@ -436,7 +436,7 @@ void cc2520_interface_free()
 	class_destroy(cl);
 
 
-	printk(KERN_INFO "[cc2520] - Removed character device\n");
+	INFO((KERN_INFO "[cc2520] - Removed character device\n"));
 
 	if (rx_buf_c) {
 		kfree(rx_buf_c);
