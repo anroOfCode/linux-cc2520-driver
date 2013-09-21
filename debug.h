@@ -9,7 +9,7 @@
 #define DEBUG_PRINT_ERR 1
 // print occasional messages about interesting things
 #define DEBUG_PRINT_INFO 2
-// print a good amount of debuging output
+// print a good amount of debugging output
 #define DEBUG_PRINT_DBG 3
 
 // Defines the level of debug output

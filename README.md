@@ -17,7 +17,7 @@ To compile you'll need an ARM cross compiler and the source tree of a compiled
 ARM kernel. Update the Makefile to point to your kernel source, and run the
 following command:
 
-make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi-
+    make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi-
 
 Please note that we're cross-compiling from an x86 machine.
 
