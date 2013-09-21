@@ -1,5 +1,5 @@
 diff --git a/arch/arm/mach-bcm2708/bcm2708.c b/arch/arm/mach-bcm2708/bcm2708.c
-index 7fe7283..32f1fdf 100644
+index 9a5632f..6f39d36 100644
 --- a/arch/arm/mach-bcm2708/bcm2708.c
 +++ b/arch/arm/mach-bcm2708/bcm2708.c
 @@ -584,6 +584,9 @@ static struct platform_device bcm2708_spi_device = {
@@ -11,4 +11,4 @@ index 7fe7283..32f1fdf 100644
 +	},
  };
  
- #ifdef CONFIG_SPI
+ #ifdef CONFIG_BCM2708_SPIDEV
