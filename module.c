@@ -20,7 +20,7 @@
 #include "debug.h"
 
 #define DRIVER_AUTHOR  "Andrew Robinson <androbin@umich.edu>"
-#define DRIVER_DESC    "A driver for the CC2520 radio. Be afraid."
+#define DRIVER_DESC    "A driver for the CC2520 radio."
 #define DRIVER_VERSION "0.5"
 
 uint8_t debug_print;
@@ -58,7 +58,7 @@ int init_module()
 
 	memset(&state, 0, sizeof(struct cc2520_state));
 
-	INFO((KERN_INFO "loading CC2520 Kernel Module v%s...\n", DRIVER_VERSION));
+	INFO((KERN_INFO "[CC2520] - Loading kernel module v%s\n", DRIVER_VERSION));
 
 	err = cc2520_plat_gpio_init();
 	if (err) {
@@ -127,7 +127,7 @@ int init_module()
 	error6:
 		cc2520_plat_gpio_free();
 	error7:
-		return 1;
+		return -1;
 }
 
 void cleanup_module()
@@ -136,7 +136,7 @@ void cleanup_module()
 	cc2520_interface_free();
 	cc2520_plat_gpio_free();
 	cc2520_plat_spi_free();
-	INFO((KERN_INFO "Unloading CC2520 Kernel Module...\n"));
+	INFO((KERN_INFO "[cc2520] - Unloading kernel module\n"));
 }
 
 MODULE_LICENSE("GPL");
